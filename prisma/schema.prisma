@@ -1,0 +1,875 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================================
+// USER MANAGEMENT
+// ========================================
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  password          String
+  firstName         String
+  lastName          String
+  phone             String?
+  dateOfBirth       DateTime?
+  gender            Gender?
+  profileImage      String?
+  profilePicture    String?
+  address           String?
+  isActive          Boolean  @default(true)
+  isEmailVerified   Boolean  @default(false)
+  isPhoneVerified   Boolean  @default(false)
+  emailVerificationToken String?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  lastLoginAt       DateTime?
+  loginAttempts     Int      @default(0)
+  lockedUntil       DateTime?
+  role              UserRole @default(STUDENT)
+  status            String?  @default("active")
+  departmentId      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relationships
+  examBookings      ExamBooking[]
+  payments          Payment[]
+  examAttempts      ExamAttempt[]
+  questionResponses QuestionResponse[]
+  questionScores    QuestionScore[]
+  examScores        ExamScore[]
+  userPerformances  UserPerformance[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  userSessions      UserSession[]
+
+  // Many-to-many relationships
+  examCategories    ExamCategoryUser[]
+  studyGroups       StudyGroupMember[]
+  certificates      Certificate[]
+  
+  // Relations for granted access
+  grantedExamCategories ExamCategoryUser[] @relation("ExamCategoryGranter")
+  createdStudyGroups StudyGroup[] @relation("StudyGroupCreator")
+  
+  // Question relations
+  createdQuestions Question[] @relation("QuestionCreator")
+  approvedQuestions Question[] @relation("QuestionApprover")
+  
+  // Exam relations
+  createdExams Exam[] @relation("ExamCreator")
+  approvedExams Exam[] @relation("ExamApprover")
+  
+  // Certificate relations
+  revokedCertificates Certificate[] @relation("CertificateRevoker")
+
+  @@map("users")
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionToken String   @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([expiresAt])
+}
+
+// ========================================
+// EXAM CATEGORIES
+// ========================================
+
+model ExamCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  color       String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  exams       Exam[]
+  questions   Question[]
+  users       ExamCategoryUser[]
+  userPerformances UserPerformance[]
+
+  @@map("exam_categories")
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+// ========================================
+// QUESTIONS & ANSWERS
+// ========================================
+
+model Question {
+  id              String           @id @default(cuid())
+  text            String
+  type            QuestionType
+  difficulty      QuestionDifficulty
+  examCategoryId  String
+  marks           Int              @default(1)
+  timeLimit       Int? // in seconds
+  isActive        Boolean          @default(true)
+  isPublic        Boolean          @default(false)
+  createdBy       String
+  approvedBy      String?
+  approvedAt      DateTime?
+  usageCount      Int              @default(0)
+  correctAnswerRate Float? // percentage of correct answers
+  averageTime     Int? // average time taken in seconds
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relationships
+  examCategory    ExamCategory     @relation(fields: [examCategoryId], references: [id], onDelete: Cascade)
+  creator         User             @relation("QuestionCreator", fields: [createdBy], references: [id])
+  approver        User?            @relation("QuestionApprover", fields: [approvedBy], references: [id])
+  options         QuestionOption[]
+  images          QuestionImage[]
+  tags            QuestionTag[]
+  examQuestions   ExamQuestion[]
+  responses       QuestionResponse[]
+  scores          QuestionScore[]
+
+  @@map("questions")
+  @@index([examCategoryId])
+  @@index([type])
+  @@index([difficulty])
+  @@index([isActive])
+  @@index([isPublic])
+  @@index([createdBy])
+  @@index([approvedBy])
+  @@index([usageCount])
+  @@index([createdAt])
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  questionId String
+  text       String
+  isCorrect  Boolean  @default(false)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_options")
+  @@index([questionId])
+  @@index([isCorrect])
+  @@index([sortOrder])
+}
+
+model QuestionImage {
+  id         String   @id @default(cuid())
+  questionId String
+  imageUrl   String
+  altText    String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_images")
+  @@index([questionId])
+  @@index([sortOrder])
+}
+
+model QuestionTag {
+  id         String   @id @default(cuid())
+  questionId String
+  tag        String
+  createdAt  DateTime @default(now())
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, tag])
+  @@map("question_tags")
+  @@index([questionId])
+  @@index([tag])
+}
+
+// ========================================
+// EXAMS & EXAM ATTEMPTS
+// ========================================
+
+model Exam {
+  id                String        @id @default(cuid())
+  title             String
+  description       String?
+  examCategoryId    String
+  duration          Int           // in minutes
+  totalMarks        Int
+  passingMarks      Int
+  price             Decimal       @db.Decimal(10, 2)
+  currency          String        @default("USD")
+  isActive          Boolean       @default(true)
+  isPublic          Boolean       @default(false)
+  allowRetakes      Boolean       @default(false)
+  maxRetakes        Int           @default(0)
+  showResults       Boolean       @default(true)
+  showAnswers       Boolean       @default(false)
+  randomizeQuestions Boolean      @default(true)
+  randomizeOptions  Boolean       @default(true)
+  questionOverlapPercentage Float  @default(10.0) // percentage of questions that can overlap between attempts
+  createdBy         String
+  approvedBy        String?
+  approvedAt        DateTime?
+  scheduledStart    DateTime?
+  scheduledEnd      DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relationships
+  examCategory       ExamCategory  @relation(fields: [examCategoryId], references: [id], onDelete: Cascade)
+  creator            User          @relation("ExamCreator", fields: [createdBy], references: [id])
+  approver           User?         @relation("ExamApprover", fields: [approvedBy], references: [id])
+  questions          ExamQuestion[]
+  bookings           ExamBooking[]
+  attempts           ExamAttempt[]
+  examScores         ExamScore[]
+  certificates       Certificate[]
+
+  @@map("exams")
+  @@index([examCategoryId])
+  @@index([isActive])
+  @@index([isPublic])
+  @@index([createdBy])
+  @@index([approvedBy])
+  @@index([scheduledStart])
+  @@index([scheduledEnd])
+  @@index([createdAt])
+}
+
+model ExamQuestion {
+  id         String   @id @default(cuid())
+  examId     String
+  questionId String
+  order      Int
+  marks      Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  exam       Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, questionId])
+  @@map("exam_questions")
+  @@index([examId])
+  @@index([questionId])
+  @@index([order])
+}
+
+model ExamBooking {
+  id           String        @id @default(cuid())
+  userId       String
+  examId       String
+  bookingDate  DateTime      @default(now())
+  scheduledAt  DateTime?
+  status       BookingStatus @default(PENDING)
+  paymentId    String?
+  totalAmount  Decimal       @db.Decimal(10, 2)
+  currency     String        @default("USD")
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relationships
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam         Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  payment      Payment?
+  attempts     ExamAttempt[]
+
+  @@map("exam_bookings")
+  @@index([userId])
+  @@index([examId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([createdAt])
+}
+
+model ExamAttempt {
+  id              String        @id @default(cuid())
+  userId          String
+  examId          String
+  bookingId       String?
+  startedAt       DateTime      @default(now())
+  completedAt     DateTime?
+  status          AttemptStatus @default(IN_PROGRESS)
+  totalMarks      Int           @default(0)
+  obtainedMarks   Int           @default(0)
+  percentage      Float         @default(0)
+  isPassed        Boolean       @default(false)
+  timeSpent       Int?          // in seconds
+  ipAddress       String?
+  userAgent       String?
+  isCheating      Boolean       @default(false)
+  cheatingReason  String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relationships
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam            Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  booking         ExamBooking?  @relation(fields: [bookingId], references: [id])
+  responses       QuestionResponse[]
+  questionScores  QuestionScore[]
+  examScore       ExamScore?
+  certificate     Certificate?
+
+  @@map("exam_attempts")
+  @@index([userId])
+  @@index([examId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([completedAt])
+  @@index([isPassed])
+  @@index([createdAt])
+}
+
+model QuestionResponse {
+  id              String   @id @default(cuid())
+  attemptId       String
+  questionId      String
+  userId          String
+  selectedOptions String[] // array of option IDs
+  isCorrect       Boolean?
+  marksObtained   Int      @default(0)
+  timeSpent       Int?     // in seconds
+  answeredAt      DateTime @default(now())
+  submittedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  attempt         ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question        Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score           QuestionScore? // One-to-one relation with score
+
+  @@unique([attemptId, questionId])
+  @@map("question_responses")
+  @@index([attemptId])
+  @@index([questionId])
+  @@index([isCorrect])
+  @@index([answeredAt])
+}
+
+// Advanced scoring system
+model QuestionScore {
+  id                String   @id @default(cuid())
+  responseId        String   @unique
+  questionId        String
+  attemptId         String
+  userId            String
+  
+  // Scoring details
+  isCorrect         Boolean  @default(false)
+  marksObtained     Float    @default(0)
+  maxMarks          Float    @default(0)
+  accuracy          Float    @default(0) // Percentage accuracy
+  timeEfficiency    Float    @default(0) // Time efficiency score
+  difficultyBonus   Float    @default(0) // Bonus for difficult questions
+  penalty           Float    @default(0) // Penalty for wrong answers
+  
+  // Advanced metrics
+  responseTime      Int      @default(0) // Time taken in seconds
+  attemptsCount     Int      @default(1) // Number of attempts for this question
+  confidenceLevel   Float    @default(0) // Confidence level (0-1)
+  questionDifficulty String  // EASY, MEDIUM, HARD
+  
+  // Timestamps
+  scoredAt          DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  response  QuestionResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question  Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attempt   ExamAttempt     @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("question_scores")
+  @@index([questionId])
+  @@index([attemptId])
+  @@index([userId])
+  @@index([isCorrect])
+  @@index([questionDifficulty])
+}
+
+// Final exam scores with detailed breakdown
+model ExamScore {
+  id                String   @id @default(cuid())
+  attemptId         String   @unique
+  examId            String
+  userId            String
+  
+  // Overall scores
+  totalMarks        Float    @default(0)
+  maxMarks          Float    @default(0)
+  percentage        Float    @default(0)
+  grade             String?  // A, B, C, D, F
+  
+  // Detailed breakdown
+  correctAnswers    Int      @default(0)
+  wrongAnswers      Int      @default(0)
+  unanswered        Int      @default(0)
+  totalQuestions    Int      @default(0)
+  
+  // Time analysis
+  totalTimeSpent    Int      @default(0) // Total time in seconds
+  averageTimePerQuestion Float @default(0)
+  timeEfficiency    Float    @default(0) // Overall time efficiency
+  
+  // Difficulty analysis
+  easyCorrect       Int      @default(0)
+  easyTotal         Int      @default(0)
+  mediumCorrect     Int      @default(0)
+  mediumTotal       Int      @default(0)
+  hardCorrect       Int      @default(0)
+  hardTotal         Int      @default(0)
+  
+  // Performance metrics
+  accuracy          Float    @default(0) // Overall accuracy
+  speedScore        Float    @default(0) // Speed-based score
+  consistencyScore  Float    @default(0) // Consistency in performance
+  difficultyScore   Float    @default(0) // Performance across difficulties
+  
+  // Advanced analytics
+  percentile        Float?   // Percentile rank
+  rank              Int?     // Rank among all attempts
+  improvement       Float?   // Improvement from previous attempts
+  
+  // Timestamps
+  calculatedAt      DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  attempt   ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  exam      Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("exam_scores")
+  @@index([examId])
+  @@index([userId])
+  @@index([percentage])
+  @@index([grade])
+}
+
+// User performance tracking
+model UserPerformance {
+  id                String   @id @default(cuid())
+  userId            String
+  examCategoryId    String?
+  
+  // Overall statistics
+  totalAttempts     Int      @default(0)
+  totalPassed       Int      @default(0)
+  totalFailed       Int      @default(0)
+  passRate          Float    @default(0)
+  
+  // Score statistics
+  averageScore      Float    @default(0)
+  highestScore      Float    @default(0)
+  lowestScore       Float    @default(0)
+  totalMarks        Float    @default(0)
+  
+  // Time statistics
+  totalTimeSpent    Int      @default(0) // Total time in seconds
+  averageTimePerExam Float   @default(0)
+  
+  // Difficulty performance
+  easyAccuracy      Float    @default(0)
+  mediumAccuracy    Float    @default(0)
+  hardAccuracy      Float    @default(0)
+  
+  // Progress tracking
+  improvementRate   Float    @default(0)
+  consistencyScore  Float    @default(0)
+  learningCurve     Float    @default(0)
+  
+  // Timestamps
+  lastAttemptAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  examCategory ExamCategory? @relation(fields: [examCategoryId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, examCategoryId])
+  @@map("user_performances")
+  @@index([userId])
+  @@index([examCategoryId])
+  @@index([passRate])
+  @@index([averageScore])
+}
+
+// ========================================
+// PAYMENTS & REVENUE
+// ========================================
+
+model Payment {
+  id              String        @id @default(cuid())
+  userId          String
+  bookingId       String?       @unique
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("USD")
+  status          PaymentStatus @default(PENDING)
+  paymentMethod   PaymentMethod
+  stripePaymentId String?
+  stripeRefundId  String?
+  description     String?
+  metadata        Json?
+  refundedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relationships
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking         ExamBooking?  @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+  @@index([userId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([stripePaymentId])
+  @@index([createdAt])
+}
+
+// ========================================
+// CERTIFICATES & ACHIEVEMENTS
+// ========================================
+
+model Certificate {
+  id              String   @id @default(cuid())
+  userId          String
+  examId          String
+  attemptId       String   @unique
+  certificateNumber String  @unique
+  issuedAt        DateTime @default(now())
+  expiresAt       DateTime?
+  isRevoked       Boolean  @default(false)
+  revokedAt       DateTime?
+  revokedBy       String?
+  revokedReason   String?
+  pdfUrl          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam            Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  attempt         ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  revoker         User?     @relation("CertificateRevoker", fields: [revokedBy], references: [id])
+
+  @@map("certificates")
+  @@index([userId])
+  @@index([examId])
+  @@index([attemptId])
+  @@index([certificateNumber])
+  @@index([issuedAt])
+  @@index([isRevoked])
+  @@index([createdAt])
+}
+
+// ========================================
+// NOTIFICATIONS & COMMUNICATIONS
+// ========================================
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  type        NotificationType
+  title       String
+  message     String
+  isRead      Boolean          @default(false)
+  readAt      DateTime?
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ========================================
+// STUDY GROUPS & COLLABORATION
+// ========================================
+
+model StudyGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isPrivate   Boolean  @default(false)
+  maxMembers  Int      @default(50)
+  createdBy   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  creator     User     @relation("StudyGroupCreator", fields: [createdBy], references: [id])
+  members     StudyGroupMember[]
+
+  @@map("study_groups")
+  @@index([createdBy])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model StudyGroupMember {
+  id           String   @id @default(cuid())
+  groupId      String
+  userId       String
+  role         GroupRole @default(MEMBER)
+  joinedAt     DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  group        StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("study_group_members")
+  @@index([groupId])
+  @@index([userId])
+  @@index([role])
+  @@index([isActive])
+}
+
+// ========================================
+// AUDIT & SECURITY
+// ========================================
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  userId      String?
+  action      String
+  resource    String
+  resourceId  String?
+  details     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([resourceId])
+  @@index([createdAt])
+}
+
+// ========================================
+// MANY-TO-MANY RELATIONSHIPS
+// ========================================
+
+model ExamCategoryUser {
+  id             String       @id @default(cuid())
+  examCategoryId String
+  userId         String
+  accessLevel    AccessLevel  @default(READ)
+  grantedAt      DateTime     @default(now())
+  grantedBy      String
+
+  examCategory   ExamCategory @relation(fields: [examCategoryId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  granter        User         @relation("ExamCategoryGranter", fields: [grantedBy], references: [id])
+
+  @@unique([examCategoryId, userId])
+  @@map("exam_category_users")
+  @@index([examCategoryId])
+  @@index([userId])
+  @@index([accessLevel])
+}
+
+// ========================================
+// ENUMS
+// ========================================
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  STUDENT
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  SINGLE_CHOICE
+  TRUE_FALSE
+  FILL_IN_THE_BLANK
+  SHORT_ANSWER
+  ESSAY
+  MATCHING
+  ORDERING
+}
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+  EXPERT
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  TIMED_OUT
+  ABANDONED
+  DISQUALIFIED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  PAYPAL
+  STRIPE
+  CASH
+}
+
+enum NotificationType {
+  EXAM_BOOKING
+  EXAM_REMINDER
+  EXAM_RESULT
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  CERTIFICATE_ISSUED
+  SYSTEM_ANNOUNCEMENT
+  GENERAL
+}
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum AccessLevel {
+  READ
+  WRITE
+  ADMIN
+}
+
+// ========================================
+// DATABASE FUNCTIONS & VIEWS
+// ========================================
+
+/// @map("exam_statistics_view")
+model ExamStatisticsView {
+  examId           String
+  examTitle        String
+  totalAttempts    Int
+  totalBookings    Int
+  totalRevenue     Decimal @db.Decimal(12, 2)
+  averageScore     Float
+  passRate         Float
+  averageTime      Int
+  lastAttemptDate  DateTime?
+
+  @@id([examId])
+  @@map("exam_statistics_view")
+}
+
+/// @map("user_performance_view")
+model UserPerformanceView {
+  userId           String
+  userEmail        String
+  totalExamsTaken  Int
+  totalExamsPassed Int
+  averageScore     Float
+  totalTimeSpent   Int
+  certificatesEarned Int
+  lastExamDate     DateTime?
+
+  @@id([userId])
+  @@map("user_performance_view")
+}
+
+/// @map("question_analytics_view")
+model QuestionAnalyticsView {
+  questionId       String
+  questionText     String
+  usageCount       Int
+  correctAnswerRate Float
+  averageTime      Int
+  difficulty       QuestionDifficulty
+  examCategoryName String
+
+  @@id([questionId])
+  @@map("question_analytics_view")
+}
+
+/// @map("revenue_analytics_view")
+model RevenueAnalyticsView {
+  date             DateTime
+  totalRevenue     Decimal @db.Decimal(12, 2)
+  totalTransactions Int
+  averageTransactionValue Decimal @db.Decimal(10, 2)
+  topExamCategory  String
+  topExam          String
+
+  @@id([date])
+  @@map("revenue_analytics_view")
+} 
