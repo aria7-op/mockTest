@@ -173,7 +173,7 @@ const Users = () => {
     }
   };
 
-  const filteredUsers = usersData?.data?.data || [];
+  const filteredUsers = usersData?.data?.users || [];
   
   // Debug logging
   console.log('Users Data:', usersData);

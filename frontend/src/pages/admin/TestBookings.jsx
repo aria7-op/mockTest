@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingAPI, examAPI, userAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import BillModal from '../../components/BillModal';
 
 const TestBookings = () => {
   const queryClient = useQueryClient();
@@ -12,6 +13,8 @@ const TestBookings = () => {
     endDate: ''
   });
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showBill, setShowBill] = useState(false);
+  const [currentBill, setCurrentBill] = useState(null);
   const [scheduleData, setScheduleData] = useState({
     userId: '',
     examId: '',
@@ -45,21 +48,29 @@ const TestBookings = () => {
 
   // Create booking mutation
   const createBookingMutation = useMutation({
-    mutationFn: (bookingData) => adminAPI.createAdminBooking(bookingData),
-    onSuccess: () => {
+    mutationFn: (bookingData) => bookingAPI.createAdminBooking(bookingData),
+    onSuccess: (response) => {
       queryClient.invalidateQueries(['admin-bookings']);
       toast.success('Test scheduled successfully!');
       setShowScheduleModal(false);
       setScheduleData({ userId: '', examId: '', scheduledAt: '', notes: '' });
+      
+      // Show bill if available
+      if (response.data?.data?.bill) {
+        setCurrentBill(response.data.data.bill);
+        setShowBill(true);
+      }
     },
     onError: (error) => {
+      console.error('❌ Booking creation error:', error);
+      console.error('❌ Error response:', error.response?.data);
       toast.error(error.response?.data?.message || 'Failed to schedule test');
     }
   });
 
   const bookings = bookingsData?.data?.data?.bookings || [];
   const pagination = bookingsData?.data?.data?.pagination;
-  const users = usersData?.data?.users || [];
+  const users = usersData?.data?.data?.users || [];
   const exams = examsData?.data?.data?.exams || [];
 
 
@@ -91,6 +102,12 @@ const TestBookings = () => {
     setShowScheduleModal(true);
   };
 
+  // Handle close bill modal
+  const handleCloseBill = () => {
+    setShowBill(false);
+    setCurrentBill(null);
+  };
+
   // Handle confirm scheduling
   const handleConfirmScheduling = () => {
     if (!scheduleData.userId || !scheduleData.examId || !scheduleData.scheduledAt) {
@@ -102,9 +119,10 @@ const TestBookings = () => {
       userId: scheduleData.userId,
       examId: scheduleData.examId,
       scheduledAt: scheduleData.scheduledAt,
-      notes: scheduleData.notes
+      ...(scheduleData.notes && { notes: scheduleData.notes })
     };
 
+    console.log('🔍 Creating admin booking with payload:', bookingPayload);
     createBookingMutation.mutate(bookingPayload);
   };
 
@@ -263,7 +281,11 @@ const TestBookings = () => {
                       </td>
                       <td>
                         <span className={`badge ${getStatusBadgeClass(booking.status)}`}>
-                          {booking.status}
+                          {booking.status === 'COMPLETED' ? '✅ COMPLETED' :
+                           booking.status === 'CONFIRMED' ? '✅ CONFIRMED' :
+                           booking.status === 'PENDING' ? '⏳ PENDING' :
+                           booking.status === 'CANCELLED' ? '❌ CANCELLED' :
+                           booking.status === 'SCHEDULED' ? '📅 SCHEDULED' : booking.status}
                         </span>
                       </td>
                       <td>
@@ -471,6 +493,20 @@ const TestBookings = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bill Modal */}
+      {showBill && (
+        <BillModal
+          bill={currentBill}
+          onClose={handleCloseBill}
+          onPrint={() => {
+            handleCloseBill();
+            // Refresh the bookings list to show updated status
+            queryClient.invalidateQueries(['admin-bookings']);
+            toast.success('Payment processed and bill printed successfully!');
+          }}
+        />
       )}
     </div>
   );

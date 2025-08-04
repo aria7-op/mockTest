@@ -26,6 +26,7 @@ const examRoutes = require('./routes/exams');
 const bookingRoutes = require('./routes/bookings');
 const attemptRoutes = require('./routes/attempts');
 const paymentRoutes = require('./routes/payments');
+const billingRoutes = require('./routes/billing');
 const analyticsRoutes = require('./routes/analytics');
 const adminRoutes = require('./routes/admin');
 
@@ -187,6 +188,7 @@ app.use('/api/v1/exams', examRoutes);
 app.use('/api/v1/bookings', auth, bookingRoutes);
 app.use('/api/v1/attempts', auth, attemptRoutes);
 app.use('/api/v1/payments', auth, paymentRoutes);
+app.use('/api/v1/billing', auth, billingRoutes);
 app.use('/api/v1/analytics', auth, analyticsRoutes);
 app.use('/api/v1/admin', auth, adminRoutes);
 

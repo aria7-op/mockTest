@@ -1,17 +1,17 @@
 const express = require('express');
 const examBookingController = require('../controllers/examBookingController');
-const { auth, studentOnly, adminOnly } = require('../middleware/auth');
+const { auth, studentOnly, adminOnly, adminOrModerator } = require('../middleware/auth');
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(auth);
 
-// Admin routes (must come before student routes to avoid conflicts)
-router.get('/admin/all', adminOnly, examBookingController.getAllBookings);
-router.post('/admin/create', adminOnly, examBookingController.createBookingForUser);
-router.patch('/admin/:bookingId/status', adminOnly, examBookingController.updateBookingStatus);
-router.get('/admin/analytics', adminOnly, examBookingController.getBookingAnalytics);
+// Admin routes (must come BEFORE student routes to avoid conflicts)
+router.get('/admin/all', adminOrModerator, examBookingController.getAllBookings);
+router.post('/admin/create', adminOrModerator, examBookingController.createBookingForUser);
+router.patch('/admin/:bookingId/status', adminOrModerator, examBookingController.updateBookingStatus);
+router.get('/admin/analytics', adminOrModerator, examBookingController.getBookingAnalytics);
 
 // Student routes
 router.use(studentOnly);

@@ -68,11 +68,11 @@ export const authAPI = {
 
 // User API
 export const userAPI = {
-  getAllUsers: (params) => api.get('/users', { params }),
+  getAllUsers: (params) => api.get('/admin/users', { params }),
   getUserById: (userId) => api.get(`/users/${userId}`),
   getProfile: () => api.get('/auth/profile'),
-  updateUser: (userId, userData) => api.put(`/users/${userId}`, userData),
-  deleteUser: (userId) => api.delete(`/users/${userId}`),
+  updateUser: (userId, userData) => api.put(`/admin/users/${userId}`, userData),
+  deleteUser: (userId) => api.delete(`/admin/users/${userId}`),
   getUserStats: (userId) => api.get(`/users/${userId}/stats`),
   getUserAttempts: (userId) => api.get(`/users/${userId}/attempts`),
   getUserPayments: (userId) => api.get(`/users/${userId}/payments`),
@@ -112,23 +112,23 @@ export const questionAPI = {
 
 // Exams API
 export const examAPI = {
-  getAllExams: (params) => api.get('/exams', { params }),
+  getAllExams: (params) => api.get('/admin/exams', { params }),
   getExamById: (examId) => api.get(`/exams/${examId}`),
   getExamDetails: (examId) => {
     console.log('🔍 API Call - getExamDetails:', examId);
     return api.get(`/exams/${examId}`);
   },
-  createExam: (examData) => api.post('/exams', examData),
-  updateExam: (examId, examData) => api.put(`/exams/${examId}`, examData),
-  deleteExam: (examId) => api.delete(`/exams/${examId}`),
+  createExam: (examData) => api.post('/admin/exams', examData),
+  updateExam: (examId, examData) => api.put(`/admin/exams/${examId}`, examData),
+  deleteExam: (examId) => api.delete(`/admin/exams/${examId}`),
   getAvailableExams: () => api.get('/exams/available'),
   getUpcomingExams: () => api.get('/exams/upcoming'),
   getExamQuestions: (examId) => api.get(`/exams/${examId}/questions`),
   getExamStats: (examId) => api.get(`/exams/${examId}/stats`),
   getExamAttempts: (examId) => api.get(`/exams/${examId}/attempts`),
-  publishExam: (examId) => api.put(`/exams/${examId}/publish`),
-  unpublishExam: (examId) => api.put(`/exams/${examId}/unpublish`),
-  duplicateExam: (examId) => api.post(`/exams/${examId}/duplicate`),
+  publishExam: (examId) => api.put(`/admin/exams/${examId}/publish`),
+  unpublishExam: (examId) => api.put(`/admin/exams/${examId}/unpublish`),
+  duplicateExam: (examId) => api.post(`/admin/exams/${examId}/duplicate`),
 };
 
 // Exam Attempts API
@@ -149,7 +149,8 @@ export const attemptAPI = {
 // Bookings API
 export const bookingAPI = {
   createBooking: (bookingData) => api.post('/bookings', bookingData),
-      getMyBookings: () => api.get('/bookings'),
+  createAdminBooking: (bookingData) => api.post('/bookings/admin/create', bookingData),
+  getMyBookings: () => api.get('/bookings'),
   getAllBookings: (params) => api.get('/bookings/admin/all', { params }),
   updateBooking: (bookingId, bookingData) => api.put(`/bookings/${bookingId}`, bookingData),
   deleteBooking: (bookingId) => api.delete(`/bookings/${bookingId}`),
@@ -172,6 +173,15 @@ export const paymentAPI = {
   getAllPayments: (params) => api.get('/admin/payments', { params }),
   updatePayment: (paymentId, paymentData) => api.put(`/payments/${paymentId}`, paymentData),
   deletePayment: (paymentId) => api.delete(`/payments/${paymentId}`),
+  processPaymentOnPrint: (bookingId) => api.post(`/payments/admin/process-on-print/${bookingId}`),
+};
+
+// Billing API
+export const billingAPI = {
+  generateBill: (bookingId) => api.get(`/billing/${bookingId}`),
+  getUserBills: (params) => api.get('/billing/user/bills', { params }),
+  getAllBills: (params) => api.get('/billing/admin/all', { params }),
+  downloadBill: (bookingId) => api.get(`/billing/${bookingId}/download`),
 };
 
 // Analytics API

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { examAPI, categoryAPI, bookingAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import BillModal from '../../components/BillModal';
 
 const AvailableTests = () => {
   console.log('🎯 AvailableTests Component - RENDERING');
@@ -17,6 +18,8 @@ const AvailableTests = () => {
   const queryClient = useQueryClient();
   const [filterSubject, setFilterSubject] = useState('all');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
+  const [showBill, setShowBill] = useState(false);
+  const [currentBill, setCurrentBill] = useState(null);
 
 
   // Fetch user's booked tests
@@ -86,6 +89,17 @@ const AvailableTests = () => {
   console.log('AvailableTests state:', {
     bookingsCount: bookings.length
   });
+
+  // Handle bill display
+  const handleShowBill = (bill) => {
+    setCurrentBill(bill);
+    setShowBill(true);
+  };
+
+  const handleCloseBill = () => {
+    setShowBill(false);
+    setCurrentBill(null);
+  };
 
   // Filter booked tests based on selected filters
   const filteredTests = bookings.filter(booking => {
@@ -257,8 +271,30 @@ const AvailableTests = () => {
                 <div>
                   <div style={{ fontSize: '0.875rem', color: '#64748b' }}>Status</div>
                   <div style={{ fontWeight: '600', color: '#1e293b' }}>
-                    <span className={`status-badge ${booking.status === 'CONFIRMED' ? 'status-active' : 'status-pending'}`}>
-                      {booking.status}
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                      backgroundColor: booking.status === 'COMPLETED' ? '#dcfce7' :
+                                    booking.status === 'CONFIRMED' ? '#dbeafe' :
+                                    booking.status === 'PENDING' ? '#fef3c7' :
+                                    booking.status === 'CANCELLED' ? '#fee2e2' : '#f3f4f6',
+                      color: booking.status === 'COMPLETED' ? '#166534' :
+                           booking.status === 'CONFIRMED' ? '#1e40af' :
+                           booking.status === 'PENDING' ? '#92400e' :
+                           booking.status === 'CANCELLED' ? '#991b1b' : '#374151',
+                      border: `1px solid ${
+                        booking.status === 'COMPLETED' ? '#bbf7d0' :
+                        booking.status === 'CONFIRMED' ? '#bfdbfe' :
+                        booking.status === 'PENDING' ? '#fde68a' :
+                        booking.status === 'CANCELLED' ? '#fecaca' : '#d1d5db'
+                      }`
+                    }}>
+                      {booking.status === 'COMPLETED' ? '✅ COMPLETED' :
+                       booking.status === 'CONFIRMED' ? '✅ CONFIRMED' :
+                       booking.status === 'PENDING' ? '⏳ PENDING' :
+                       booking.status === 'CANCELLED' ? '❌ CANCELLED' : booking.status}
                     </span>
                   </div>
                 </div>
@@ -266,6 +302,12 @@ const AvailableTests = () => {
                   <div style={{ fontSize: '0.875rem', color: '#64748b' }}>Scheduled</div>
                   <div style={{ fontWeight: '600', color: '#1e293b' }}>
                     {booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'Not scheduled'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#64748b' }}>Price</div>
+                  <div style={{ fontWeight: '600', color: '#1e293b' }}>
+                    {test.currency} {test.price}
                   </div>
                 </div>
               </div>
@@ -300,14 +342,62 @@ const AvailableTests = () => {
                 >
                   Start Test
                 </button>
-                <button className="btn btn-secondary">
-                  View Details
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    // Generate bill for this booking
+                    const bill = {
+                      billNumber: `BILL-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                      billDate: new Date(),
+                      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                      booking: {
+                        id: booking.id,
+                        scheduledAt: booking.scheduledAt,
+                        status: booking.status
+                      },
+                      exam: {
+                        id: test.id,
+                        title: test.title,
+                        description: test.description,
+                        category: test.examCategory?.name || 'Unknown',
+                        duration: test.duration,
+                        totalMarks: test.totalMarks
+                      },
+                      customer: {
+                        id: user.id,
+                        name: `${user.firstName} ${user.lastName}`,
+                        email: user.email
+                      },
+                      amount: {
+                        subtotal: test.price || 0,
+                        tax: 0,
+                        total: test.price || 0,
+                        currency: test.currency || 'USD'
+                      },
+                      payment: null,
+                      status: 'PENDING'
+                    };
+                    handleShowBill(bill);
+                  }}
+                >
+                  📄 View Bill
                 </button>
               </div>
             </div>
           );
           })}
         </div>
+      )}
+
+      {/* Bill Modal */}
+      {showBill && (
+        <BillModal
+          bill={currentBill}
+          onClose={handleCloseBill}
+          onPrint={() => {
+            toast.success('Bill printed successfully!');
+          }}
+        />
       )}
     </div>
   );

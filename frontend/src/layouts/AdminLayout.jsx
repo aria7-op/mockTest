@@ -10,14 +10,14 @@ const AdminLayout = () => {
 
   const navigation = [
     { name: 'Dashboard', path: '/admin', icon: '📊', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'] },
-    { name: 'Categories', path: '/admin/categories', icon: '📚', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Tests', path: '/admin/tests', icon: '📝', roles: ['SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Categories', path: '/admin/categories', icon: '📚', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'], disabledFor: ['MODERATOR'] },
+    { name: 'Tests', path: '/admin/tests', icon: '📝', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'], disabledFor: ['MODERATOR'] },
     { name: 'Questions', path: '/admin/questions', icon: '❓', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'] },
-    { name: 'Users', path: '/admin/users', icon: '👥', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Test Bookings', path: '/admin/bookings', icon: '📅', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Reports', path: '/admin/reports', icon: '📈', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Analytics', path: '/admin/analytics', icon: '📊', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Settings', path: '/admin/settings', icon: '⚙️', roles: ['SUPER_ADMIN'] }
+    { name: 'Users', path: '/admin/users', icon: '👥', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'] },
+    { name: 'Test Bookings', path: '/admin/bookings', icon: '📅', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'] },
+    { name: 'Reports', path: '/admin/reports', icon: '📈', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'], disabledFor: ['MODERATOR'] },
+    { name: 'Analytics', path: '/admin/analytics', icon: '📊', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'], disabledFor: ['MODERATOR'] },
+    { name: 'Settings', path: '/admin/settings', icon: '⚙️', roles: ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'], disabledFor: ['MODERATOR'] }
   ];
 
   const handleLogout = () => {
@@ -63,42 +63,70 @@ const AdminLayout = () => {
         <nav className="admin-sidebar-nav">
           {navigation
             .filter(item => !item.roles || item.roles.includes(user?.role))
-            .map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              className={({ isActive }) => 
-                `admin-nav-item ${isActive ? 'active' : ''}`
-              }
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                padding: '16px 32px',
-                color: 'var(--secondary-300)',
-                textDecoration: 'none',
-                transition: 'all 0.3s ease',
-                borderLeft: '4px solid transparent',
-                fontSize: '16px',
-                fontWeight: '500',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-            >
-              <span style={{ fontSize: '20px' }}>{item.icon}</span>
-              <span>{item.name}</span>
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent)',
-                transform: 'translateX(-100%)',
-                transition: 'transform 0.5s ease'
-              }}></div>
-            </NavLink>
-          ))}
+            .map((item) => {
+              const isDisabled = item.disabledFor && item.disabledFor.includes(user?.role);
+              return (
+                <div
+                  key={item.name}
+                  style={{
+                    position: 'relative',
+                    opacity: isDisabled ? 0.5 : 1,
+                    cursor: isDisabled ? 'not-allowed' : 'pointer'
+                  }}
+                  title={isDisabled ? 'Access restricted for your role' : ''}
+                >
+                  <NavLink
+                    to={isDisabled ? '#' : item.path}
+                    onClick={(e) => {
+                      if (isDisabled) {
+                        e.preventDefault();
+                        return false;
+                      }
+                    }}
+                    className={({ isActive }) => 
+                      `admin-nav-item ${isActive ? 'active' : ''}`
+                    }
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      padding: '16px 32px',
+                      color: isDisabled ? 'var(--secondary-500)' : 'var(--secondary-300)',
+                      textDecoration: 'none',
+                      transition: 'all 0.3s ease',
+                      borderLeft: '4px solid transparent',
+                      fontSize: '16px',
+                      fontWeight: '500',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      pointerEvents: isDisabled ? 'none' : 'auto'
+                    }}
+                  >
+                    <span style={{ fontSize: '20px' }}>{item.icon}</span>
+                    <span>{item.name}</span>
+                    {isDisabled && (
+                      <span style={{
+                        fontSize: '12px',
+                        color: 'var(--secondary-500)',
+                        marginLeft: 'auto'
+                      }}>
+                        🔒
+                      </span>
+                    )}
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent)',
+                      transform: 'translateX(-100%)',
+                      transition: 'transform 0.5s ease'
+                    }}></div>
+                  </NavLink>
+                </div>
+              );
+            })}
         </nav>
 
         {/* Sidebar Footer */}

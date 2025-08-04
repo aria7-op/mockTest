@@ -28,7 +28,8 @@ const Tests = () => {
     isPublic: false,
     startDate: '',
     endDate: '',
-    price: 0
+    price: 0,
+    currency: 'USD'
   });
 
   // Fetch all exams
@@ -70,7 +71,8 @@ const Tests = () => {
         isPublic: false,
         startDate: '',
         endDate: '',
-        price: 0
+        price: 0,
+        currency: 'USD'
       });
     },
     onError: (error) => {
@@ -100,7 +102,8 @@ const Tests = () => {
         isPublic: false,
         startDate: '',
         endDate: '',
-        price: 0
+        price: 0,
+        currency: 'USD'
       });
     },
     onError: (error) => {
@@ -156,7 +159,8 @@ const Tests = () => {
       isPublic: exam.isPublic || false,
       startDate: exam.startDate ? new Date(exam.startDate).toISOString().split('T')[0] : '',
       endDate: exam.endDate ? new Date(exam.endDate).toISOString().split('T')[0] : '',
-      price: exam.price || 0
+      price: exam.price || 0,
+      currency: exam.currency || 'USD'
     });
     setShowAddModal(true);
   };
@@ -271,7 +275,15 @@ const Tests = () => {
             </select>
             <button 
               className="btn btn-primary"
+              style={{
+                opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
+                cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
+              }}
               onClick={() => {
+                if (currentUser?.role === 'MODERATOR') {
+                  toast.error('Access restricted for your role');
+                  return;
+                }
                 setEditingTest(null);
                 setFormData({
                   title: '',
@@ -287,10 +299,12 @@ const Tests = () => {
                   isPublic: false,
                   startDate: '',
                   endDate: '',
-                  price: 0
+                  price: 0,
+                  currency: 'USD'
                 });
                 setShowAddModal(true);
               }}
+              title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
             >
               ➕ Add Exam
             </button>
@@ -305,6 +319,7 @@ const Tests = () => {
               <th>Duration</th>
               <th>Questions</th>
               <th>Difficulty</th>
+              <th>Price</th>
               <th>Status</th>
               <th>Attempts</th>
               <th>Created</th>
@@ -340,6 +355,16 @@ const Tests = () => {
                   </span>
                 </td>
                 <td>
+                  <div style={{ fontWeight: '600', color: exam.price > 0 ? 'var(--success-600)' : 'var(--secondary-600)' }}>
+                    {exam.currency || 'USD'} {exam.price || 0}
+                  </div>
+                  {exam.price > 0 && (
+                    <div style={{ fontSize: '12px', color: 'var(--secondary-500)' }}>
+                      Paid Exam
+                    </div>
+                  )}
+                </td>
+                <td>
                   <span className={`badge ${
                     exam.status === 'PUBLISHED' ? 'badge-success' :
                     exam.status === 'DRAFT' ? 'badge-warning' : 'badge-secondary'
@@ -353,32 +378,80 @@ const Tests = () => {
                   <div className="data-table-actions-cell">
                     <button 
                       className="btn btn-secondary" 
-                      style={{ padding: '4px 8px', fontSize: '12px' }}
-                      onClick={() => handleEditExam(exam)}
+                      style={{ 
+                        padding: '4px 8px', 
+                        fontSize: '12px',
+                        opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
+                        cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
+                      }}
+                      onClick={() => {
+                        if (currentUser?.role === 'MODERATOR') {
+                          toast.error('Access restricted for your role');
+                          return;
+                        }
+                        handleEditExam(exam);
+                      }}
+                      title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
                     >
                       ✏️ Edit
                     </button>
                     {exam.status === 'DRAFT' ? (
                       <button 
                         className="btn btn-success" 
-                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                        onClick={() => handlePublishExam(exam.id, 'publish')}
+                        style={{ 
+                          padding: '4px 8px', 
+                          fontSize: '12px',
+                          opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
+                          cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
+                        }}
+                        onClick={() => {
+                          if (currentUser?.role === 'MODERATOR') {
+                            toast.error('Access restricted for your role');
+                            return;
+                          }
+                          handlePublishExam(exam.id, 'publish');
+                        }}
+                        title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
                       >
                         📤 Publish
                       </button>
                     ) : exam.status === 'PUBLISHED' ? (
                       <button 
                         className="btn btn-warning" 
-                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                        onClick={() => handlePublishExam(exam.id, 'unpublish')}
+                        style={{ 
+                          padding: '4px 8px', 
+                          fontSize: '12px',
+                          opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
+                          cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
+                        }}
+                        onClick={() => {
+                          if (currentUser?.role === 'MODERATOR') {
+                            toast.error('Access restricted for your role');
+                            return;
+                          }
+                          handlePublishExam(exam.id, 'unpublish');
+                        }}
+                        title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
                       >
                         📥 Unpublish
                       </button>
                     ) : null}
                     <button 
                       className="btn btn-danger" 
-                      style={{ padding: '4px 8px', fontSize: '12px' }}
-                      onClick={() => handleDeleteExam(exam.id)}
+                      style={{ 
+                        padding: '4px 8px', 
+                        fontSize: '12px',
+                        opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
+                        cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
+                      }}
+                      onClick={() => {
+                        if (currentUser?.role === 'MODERATOR') {
+                          toast.error('Access restricted for your role');
+                          return;
+                        }
+                        handleDeleteExam(exam.id);
+                      }}
+                      title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
                     >
                       🗑️ Delete
                     </button>
@@ -556,7 +629,7 @@ const Tests = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
                     Max Attempts
@@ -591,6 +664,29 @@ const Tests = () => {
                       borderRadius: '6px'
                     }}
                   />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                    Currency
+                  </label>
+                  <select
+                    value={formData.currency}
+                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid var(--secondary-300)',
+                      borderRadius: '6px'
+                    }}
+                  >
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="CAD">CAD (C$)</option>
+                    <option value="AUD">AUD (A$)</option>
+                    <option value="JPY">JPY (¥)</option>
+                    <option value="INR">INR (₹)</option>
+                  </select>
                 </div>
               </div>
 

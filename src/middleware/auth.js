@@ -169,6 +169,15 @@ const superAdminOnly = authorize('SUPER_ADMIN');
 // Student only middleware
 const studentOnly = authorize('STUDENT');
 
+// Moderator only middleware
+const moderatorOnly = authorize('MODERATOR');
+
+// Admin or moderator middleware (for viewing everything)
+const adminOrModerator = authorize('ADMIN', 'SUPER_ADMIN', 'MODERATOR');
+
+// Admin or super admin only (no moderator)
+const adminOrSuperAdmin = authorize('ADMIN', 'SUPER_ADMIN');
+
 // Resource ownership middleware
 const checkOwnership = (resourceModel, resourceIdField = 'id') => {
   return async (req, res, next) => {
@@ -300,6 +309,9 @@ module.exports = {
   adminOnly,
   superAdminOnly,
   studentOnly,
+  moderatorOnly,
+  adminOrModerator,
+  adminOrSuperAdmin,
   checkOwnership,
   checkExamAccess,
 }; 

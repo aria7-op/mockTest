@@ -160,6 +160,10 @@ class ExamBookingController {
         };
       });
 
+      // Generate bill for the booking
+      const billingService = require('../services/billingService');
+      const bill = await billingService.generateBill(booking.booking.id);
+
       // Send notification
       await notificationService.sendBookingConfirmation(booking.booking.user.email, {
         bookingId: booking.booking.id,
@@ -197,7 +201,8 @@ class ExamBookingController {
         data: {
           booking: booking.booking,
           questionCount: booking.questionCount,
-          requiresPayment: booking.booking.status === 'PENDING'
+          requiresPayment: booking.booking.status === 'PENDING',
+          bill: bill
         }
       });
     } catch (error) {
@@ -689,10 +694,51 @@ class ExamBookingController {
         return newBooking;
       });
 
+      // Generate bill for the booking
+      const billingService = require('../services/billingService');
+      const bill = await billingService.generateBill(booking.id);
+
+      // Send notification
+      await notificationService.sendBookingConfirmation(booking.user.email, {
+        bookingId: booking.id,
+        examTitle: booking.exam.title,
+        scheduledAt: booking.scheduledAt,
+        totalAmount: booking.totalAmount,
+        currency: booking.currency,
+        firstName: booking.user.firstName
+      });
+
+      // Log the booking creation
+      logger.logExam('ADMIN_BOOKING_CREATED', examId, userId, {
+        bookingId: booking.id,
+        questionCount: exam.questions.length,
+        totalAmount: booking.totalAmount,
+        adminId: adminId
+      });
+
+      // Emit WebSocket event for booking created
+      if (global.io) {
+        global.io.to('admin-room').emit('admin-booking-created', {
+          userId: userId,
+          userName: `${user.firstName} ${user.lastName}`,
+          examId: examId,
+          examTitle: booking.exam.title,
+          bookingId: booking.id,
+          totalAmount: booking.totalAmount,
+          currency: booking.currency,
+          adminId: adminId,
+          adminName: `${req.user.firstName} ${req.user.lastName}`,
+          timestamp: new Date().toISOString()
+        });
+      }
+
       res.status(201).json({
         success: true,
         message: 'Booking created successfully',
-        data: { booking }
+        data: { 
+          booking,
+          bill: bill
+        }
       });
     } catch (error) {
       logger.error('Admin create booking failed', error);

@@ -191,7 +191,15 @@ const Categories = () => {
             />
             <button 
               className="btn btn-primary"
+              style={{
+                opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
+                cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
+              }}
               onClick={() => {
+                if (currentUser?.role === 'MODERATOR') {
+                  toast.error('Access restricted for your role');
+                  return;
+                }
                 setEditingCategory(null);
                 setFormData({
                   name: '',
@@ -202,6 +210,7 @@ const Categories = () => {
                 });
                 setShowAddModal(true);
               }}
+              title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
             >
               ➕ Add Category
             </button>
@@ -285,15 +294,41 @@ const Categories = () => {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
                   className="btn btn-secondary" 
-                  style={{ flex: 1, padding: '8px', fontSize: '12px' }}
-                  onClick={() => handleEditCategory(category)}
+                  style={{ 
+                    flex: 1, 
+                    padding: '8px', 
+                    fontSize: '12px',
+                    opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
+                    cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
+                  }}
+                  onClick={() => {
+                    if (currentUser?.role === 'MODERATOR') {
+                      toast.error('Access restricted for your role');
+                      return;
+                    }
+                    handleEditCategory(category);
+                  }}
+                  title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
                 >
                   ✏️ Edit
                 </button>
                 <button 
                   className="btn btn-danger" 
-                  style={{ flex: 1, padding: '8px', fontSize: '12px' }}
-                  onClick={() => handleDeleteCategory(category.id)}
+                  style={{ 
+                    flex: 1, 
+                    padding: '8px', 
+                    fontSize: '12px',
+                    opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
+                    cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
+                  }}
+                  onClick={() => {
+                    if (currentUser?.role === 'MODERATOR') {
+                      toast.error('Access restricted for your role');
+                      return;
+                    }
+                    handleDeleteCategory(category.id);
+                  }}
+                  title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
                 >
                   🗑️ Delete
                 </button>

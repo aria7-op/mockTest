@@ -603,9 +603,20 @@ class ExamService {
    */
   checkAnswer(question, selectedOptions) {
     try {
+      // Validate inputs
+      if (!question || !question.options || !Array.isArray(question.options)) {
+        logger.error('Invalid question object in checkAnswer', { question });
+        return false;
+      }
+
+      if (!selectedOptions || !Array.isArray(selectedOptions)) {
+        logger.error('Invalid selectedOptions in checkAnswer', { selectedOptions });
+        return false;
+      }
+
       // Get correct option IDs from the question options
       const correctOptionIds = question.options
-        .filter(option => option.isCorrect)
+        .filter(option => option && option.isCorrect)
         .map(option => option.id)
         .sort();
       

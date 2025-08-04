@@ -19,7 +19,7 @@ const validateExamBooking = (data) => {
         'date.min': 'Scheduled date must be in the future',
         'any.required': 'Scheduled date is required'
       }),
-      notes: Joi.string().max(1000).optional().messages({
+      notes: Joi.string().max(1000).allow('').optional().messages({
         'string.max': 'Notes must not exceed 1000 characters'
       })
     });
@@ -48,7 +48,7 @@ const validateBookingUpdate = (req, res, next) => {
       specialRequirements: Joi.string().max(500).optional().messages({
         'string.max': 'Special requirements must not exceed 500 characters'
       }),
-      notes: Joi.string().max(1000).optional().messages({
+      notes: Joi.string().max(1000).allow('').optional().messages({
         'string.max': 'Notes must not exceed 1000 characters'
       })
     });
