@@ -11,8 +11,11 @@ const validateExamCreation = (data) => {
     description: Joi.string().max(1000).optional().messages({
       'string.max': 'Description cannot exceed 1000 characters'
     }),
-    examCategoryId: Joi.string().required().messages({
-      'any.required': 'Exam category is required'
+    examCategoryId: Joi.string().optional().messages({
+      'string.base': 'Exam category ID must be a string'
+    }),
+    categoryId: Joi.string().optional().messages({
+      'string.base': 'Category ID must be a string'
     }),
     duration: Joi.number().integer().min(1).max(480).required().messages({
       'number.base': 'Duration must be a number',
@@ -21,19 +24,29 @@ const validateExamCreation = (data) => {
       'number.max': 'Duration cannot exceed 480 minutes (8 hours)',
       'any.required': 'Duration is required'
     }),
-    totalMarks: Joi.number().integer().min(1).max(1000).required().messages({
+    totalMarks: Joi.number().integer().min(1).max(1000).optional().messages({
       'number.base': 'Total marks must be a number',
       'number.integer': 'Total marks must be a whole number',
       'number.min': 'Total marks must be at least 1',
-      'number.max': 'Total marks cannot exceed 1000',
-      'any.required': 'Total marks is required'
+      'number.max': 'Total marks cannot exceed 1000'
     }),
-    passingMarks: Joi.number().integer().min(1).max(Joi.ref('totalMarks')).required().messages({
+    totalQuestions: Joi.number().integer().min(1).max(1000).optional().messages({
+      'number.base': 'Total questions must be a number',
+      'number.integer': 'Total questions must be a whole number',
+      'number.min': 'Total questions must be at least 1',
+      'number.max': 'Total questions cannot exceed 1000'
+    }),
+    passingMarks: Joi.number().integer().min(1).max(Joi.ref('totalMarks')).optional().messages({
       'number.base': 'Passing marks must be a number',
       'number.integer': 'Passing marks must be a whole number',
       'number.min': 'Passing marks must be at least 1',
-      'number.max': 'Passing marks cannot exceed total marks',
-      'any.required': 'Passing marks is required'
+      'number.max': 'Passing marks cannot exceed total marks'
+    }),
+    passingScore: Joi.number().integer().min(1).max(100).optional().messages({
+      'number.base': 'Passing score must be a number',
+      'number.integer': 'Passing score must be a whole number',
+      'number.min': 'Passing score must be at least 1',
+      'number.max': 'Passing score cannot exceed 100'
     }),
     price: Joi.number().precision(2).min(0).max(10000).required().messages({
       'number.base': 'Price must be a number',
@@ -48,16 +61,11 @@ const validateExamCreation = (data) => {
     isActive: Joi.boolean().default(true),
     isPublic: Joi.boolean().default(false),
     allowRetakes: Joi.boolean().default(false),
-    maxRetakes: Joi.when('allowRetakes', {
-      is: true,
-      then: Joi.number().integer().min(1).max(10).required(),
-      otherwise: Joi.number().integer().min(0).max(0).default(0)
-    }).messages({
+    maxRetakes: Joi.number().integer().min(0).max(100000).default(0).messages({
       'number.base': 'Max retakes must be a number',
       'number.integer': 'Max retakes must be a whole number',
-      'number.min': 'Max retakes must be at least 1 when retakes are allowed',
-      'number.max': 'Max retakes cannot exceed 10',
-      'any.required': 'Max retakes is required when retakes are allowed'
+      'number.min': 'Max retakes cannot be negative',
+      'number.max': 'Max retakes cannot exceed 100000'
     }),
     showResults: Joi.boolean().default(true),
     showAnswers: Joi.boolean().default(false),
@@ -69,15 +77,51 @@ const validateExamCreation = (data) => {
       'number.min': 'Question overlap percentage cannot be negative',
       'number.max': 'Question overlap percentage cannot exceed 100'
     }),
+    instructions: Joi.string().max(2000).optional(),
+    rules: Joi.string().max(2000).optional(),
+    // Accept both frontend format (startDate/endDate) and backend format (scheduledStart/scheduledEnd)
+    startDate: Joi.date().min('now').optional().messages({
+      'date.min': 'Start date cannot be in the past'
+    }),
+    endDate: Joi.date().min(Joi.ref('startDate')).optional().messages({
+      'date.min': 'End date must be after start date'
+    }),
     scheduledStart: Joi.date().min('now').optional().messages({
       'date.min': 'Scheduled start date cannot be in the past'
     }),
     scheduledEnd: Joi.date().min(Joi.ref('scheduledStart')).optional().messages({
       'date.min': 'Scheduled end date must be after start date'
-    })
+    }),
+    // Question type distribution
+    essayQuestionsCount: Joi.number().integer().min(0).default(0),
+    multipleChoiceQuestionsCount: Joi.number().integer().min(0).default(0),
+    shortAnswerQuestionsCount: Joi.number().integer().min(0).default(0),
+    fillInTheBlankQuestionsCount: Joi.number().integer().min(0).default(0),
+    trueFalseQuestionsCount: Joi.number().integer().min(0).default(0),
+    matchingQuestionsCount: Joi.number().integer().min(0).default(0),
+    orderingQuestionsCount: Joi.number().integer().min(0).default(0),
+    accountingTableQuestionsCount: Joi.number().integer().min(0).default(0),
+    compoundChoiceQuestionsCount: Joi.number().integer().min(0).default(0)
+  }).custom((value, helpers) => {
+    // Ensure at least one of examCategoryId or categoryId is provided
+    if (!value.examCategoryId && !value.categoryId) {
+      return helpers.error('any.required', { message: 'Either examCategoryId or categoryId is required' });
+    }
+    
+    // Ensure at least one of totalMarks or totalQuestions is provided
+    if (!value.totalMarks && !value.totalQuestions) {
+      return helpers.error('any.required', { message: 'Either totalMarks or totalQuestions is required' });
+    }
+    
+    // Ensure at least one of passingMarks or passingScore is provided
+    if (!value.passingMarks && !value.passingScore) {
+      return helpers.error('any.required', { message: 'Either passingMarks or passingScore is required' });
+    }
+    
+    return value;
   });
 
-  return schema.validate(data);
+  return schema.unknown().validate(data);
 };
 
 // Exam update validation
@@ -120,11 +164,11 @@ const validateExamUpdate = (data) => {
     isActive: Joi.boolean().optional(),
     isPublic: Joi.boolean().optional(),
     allowRetakes: Joi.boolean().optional(),
-    maxRetakes: Joi.number().integer().min(0).max(10).optional().messages({
+    maxRetakes: Joi.number().integer().min(0).max(100000).optional().messages({
       'number.base': 'Max retakes must be a number',
       'number.integer': 'Max retakes must be a whole number',
       'number.min': 'Max retakes cannot be negative',
-      'number.max': 'Max retakes cannot exceed 10'
+      'number.max': 'Max retakes cannot exceed 100000'
     }),
     showResults: Joi.boolean().optional(),
     showAnswers: Joi.boolean().optional(),
@@ -136,11 +180,26 @@ const validateExamUpdate = (data) => {
       'number.min': 'Question overlap percentage cannot be negative',
       'number.max': 'Question overlap percentage cannot exceed 100'
     }),
+    instructions: Joi.string().max(2000).optional(),
+    rules: Joi.string().max(2000).optional(),
+    // Accept both frontend format (startDate/endDate) and backend format (scheduledStart/scheduledEnd)
+    startDate: Joi.date().optional(),
+    endDate: Joi.date().optional(),
     scheduledStart: Joi.date().optional(),
-    scheduledEnd: Joi.date().optional()
+    scheduledEnd: Joi.date().optional(),
+    // Question type distribution
+    essayQuestionsCount: Joi.number().integer().min(0).optional(),
+    multipleChoiceQuestionsCount: Joi.number().integer().min(0).optional(),
+    shortAnswerQuestionsCount: Joi.number().integer().min(0).optional(),
+    fillInTheBlankQuestionsCount: Joi.number().integer().min(0).optional(),
+    trueFalseQuestionsCount: Joi.number().integer().min(0).optional(),
+    matchingQuestionsCount: Joi.number().integer().min(0).optional(),
+    orderingQuestionsCount: Joi.number().integer().min(0).optional(),
+    accountingTableQuestionsCount: Joi.number().integer().min(0).optional(),
+    compoundChoiceQuestionsCount: Joi.number().integer().min(0).optional()
   });
 
-  return schema.validate(data);
+  return schema.unknown().validate(data);
 };
 
 // Question creation validation
@@ -151,7 +210,7 @@ const validateQuestionCreation = (data) => {
       'string.max': 'Question text cannot exceed 2000 characters',
       'any.required': 'Question text is required'
     }),
-    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING').required().messages({
+    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE').required().messages({
       'any.only': 'Invalid question type',
       'any.required': 'Question type is required'
     }),
@@ -177,7 +236,7 @@ const validateQuestionCreation = (data) => {
     isActive: Joi.boolean().default(true),
     isPublic: Joi.boolean().default(false),
     options: Joi.when('type', {
-      is: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE'),
+      is: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE'),
       then: Joi.array().items(
         Joi.object({
           text: Joi.string().min(1).max(500).required(),
@@ -204,6 +263,33 @@ const validateQuestionCreation = (data) => {
       })
     ).max(10).optional().messages({
       'array.max': 'Maximum 10 images allowed'
+    }),
+    // New fields for advanced question types
+    tableData: Joi.when('type', {
+      is: 'ACCOUNTING_TABLE',
+      then: Joi.string().min(1).max(10000).required().messages({
+        'string.min': 'Table data is required for accounting table questions',
+        'string.max': 'Table data cannot exceed 10000 characters'
+      }),
+      otherwise: Joi.forbidden()
+    }),
+    answerSections: Joi.when('type', {
+      is: 'COMPOUND_CHOICE',
+      then: Joi.array().items(
+        Joi.object({
+          title: Joi.string().min(1).max(200).required(),
+          options: Joi.array().items(
+            Joi.object({
+              text: Joi.string().min(1).max(500).required(),
+              isCorrect: Joi.boolean().required()
+            })
+          ).min(2).max(10).required()
+        })
+      ).min(1).max(10).required().messages({
+        'array.min': 'At least 1 answer section is required for compound choice questions',
+        'array.max': 'Maximum 10 answer sections allowed'
+      }),
+      otherwise: Joi.forbidden()
     })
   });
 
@@ -217,7 +303,7 @@ const validateQuestionUpdate = (data) => {
       'string.min': 'Question text must be at least 10 characters long',
       'string.max': 'Question text cannot exceed 2000 characters'
     }),
-    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING').optional().messages({
+    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE').optional().messages({
       'any.only': 'Invalid question type'
     }),
     difficulty: Joi.string().valid('EASY', 'MEDIUM', 'HARD', 'EXPERT').optional().messages({
@@ -261,6 +347,25 @@ const validateQuestionUpdate = (data) => {
       })
     ).max(10).optional().messages({
       'array.max': 'Maximum 10 images allowed'
+    }),
+    // New fields for advanced question types
+    tableData: Joi.string().min(1).max(10000).optional().messages({
+      'string.min': 'Table data must be at least 1 character',
+      'string.max': 'Table data cannot exceed 10000 characters'
+    }),
+    answerSections: Joi.array().items(
+      Joi.object({
+        title: Joi.string().min(1).max(200).required(),
+        options: Joi.array().items(
+          Joi.object({
+            text: Joi.string().min(1).max(500).required(),
+            isCorrect: Joi.boolean().required()
+          })
+        ).min(2).max(10).required()
+      })
+    ).min(1).max(10).optional().messages({
+      'array.min': 'At least 1 answer section is required for compound choice questions',
+      'array.max': 'Maximum 10 answer sections allowed'
     })
   });
 
@@ -278,8 +383,9 @@ const validateExamAttempt = (data) => {
     responses: Joi.array().items(
       Joi.object({
         questionId: Joi.string().required(),
-        selectedOptions: Joi.array().items(Joi.string()).optional(),
-        timeSpent: Joi.number().integer().min(0).optional()
+        selectedOptions: Joi.array().items(Joi.alternatives().try(Joi.string(), Joi.number())).optional(),
+        timeSpent: Joi.number().integer().min(0).optional(),
+        essayAnswer: Joi.string().max(10000).allow(null, '').optional()
       })
     ).optional()
   });
@@ -293,17 +399,28 @@ const validateQuestionResponse = (data) => {
     questionId: Joi.string().required().messages({
       'any.required': 'Question ID is required'
     }),
-    selectedOptions: Joi.array().items(Joi.string()).min(1).required().messages({
-      'array.min': 'At least one option must be selected',
-      'any.required': 'Selected options are required'
+    selectedOptions: Joi.array().items(Joi.alternatives().try(Joi.string(), Joi.number())).optional().messages({
+      'array.base': 'Selected options must be an array'
     }),
     timeSpent: Joi.number().integer().min(0).max(3600).optional().messages({
       'number.base': 'Time spent must be a number',
       'number.integer': 'Time spent must be a whole number',
       'number.min': 'Time spent cannot be negative',
       'number.max': 'Time spent cannot exceed 3600 seconds (1 hour)'
+    }),
+    essayAnswer: Joi.string().max(10000).allow(null, '').optional().messages({
+      'string.max': 'Essay answer cannot exceed 10,000 characters'
     })
+  }).or('selectedOptions', 'essayAnswer').messages({
+    'object.missing': 'Either selectedOptions or essayAnswer must be provided'
   });
+
+  // Add validation for new question types
+  if (data.questionType === 'ACCOUNTING_TABLE' || data.questionType === 'COMPOUND_CHOICE') {
+    if (!data.selectedOptions || data.selectedOptions.length === 0) {
+      return { error: { details: [{ message: 'Selected options are required for this question type' }] } };
+    }
+  }
 
   return schema.validate(data);
 };
@@ -358,7 +475,7 @@ const validateExamCategory = (data) => {
 const validateBulkQuestionImport = (data) => {
   const questionSchema = Joi.object({
     text: Joi.string().min(10).max(2000).required(),
-    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING').required(),
+    type: Joi.string().valid('MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ESSAY', 'MATCHING', 'ORDERING', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE').required(),
     difficulty: Joi.string().valid('EASY', 'MEDIUM', 'HARD', 'EXPERT').required(),
     examCategoryId: Joi.string().required(),
     marks: Joi.number().integer().min(1).max(100).default(1),
@@ -371,7 +488,20 @@ const validateBulkQuestionImport = (data) => {
       })
     ).min(2).max(10).optional(),
     explanation: Joi.string().max(2000).optional(),
-    tags: Joi.array().items(Joi.string().min(1).max(50)).max(20).optional()
+    tags: Joi.array().items(Joi.string().min(1).max(50)).max(20).optional(),
+    // New fields for advanced question types
+    tableData: Joi.string().min(1).max(10000).optional(),
+    answerSections: Joi.array().items(
+      Joi.object({
+        title: Joi.string().min(1).max(200).required(),
+        options: Joi.array().items(
+          Joi.object({
+            text: Joi.string().min(1).max(500).required(),
+            isCorrect: Joi.boolean().required()
+          })
+        ).min(2).max(10).required()
+      })
+    ).min(1).max(10).optional()
   });
 
   const schema = Joi.object({

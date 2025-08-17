@@ -192,6 +192,16 @@ class PaymentService {
       });
 
       logger.info(`Payment processed: ${paymentId} with status: ${status}`);
+      
+      // Send payment notification
+      if (global.notificationService && updatedPayment.userId) {
+        if (status === 'COMPLETED') {
+          await global.notificationService.notifyPaymentSuccess(updatedPayment);
+        } else if (status === 'FAILED') {
+          await global.notificationService.notifyPaymentFailed(updatedPayment);
+        }
+      }
+      
       return updatedPayment;
     } catch (error) {
       logger.error('Error processing payment:', error);

@@ -1,7 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
 const logger = require('../config/logger');
+const FileUploadService = require('./fileUploadService');
 
 const prisma = new PrismaClient();
+const fileUploadService = new FileUploadService();
 
 class QuestionService {
   /**
@@ -16,11 +18,14 @@ class QuestionService {
         marks,
         timeLimit,
         examCategoryId,
-        explanation,
-        tags,
-        images,
-        options
+        remark,
+        tableData,
+        answerSections,
+        options,
+        images = []
       } = questionData;
+
+
 
       // Validate exam category exists
       const category = await prisma.examCategory.findUnique({
@@ -31,30 +36,89 @@ class QuestionService {
         return { success: false, message: 'Exam category not found' };
       }
 
-      // Create question with options
-      const question = await prisma.question.create({
-        data: {
-          text,
-          type,
-          difficulty,
-          marks,
-          timeLimit,
-          examCategoryId,
-          explanation,
-          tags,
-          images,
-          createdBy,
-          options: {
-            create: options.map(option => ({
-              text: option.text,
-              isCorrect: option.isCorrect,
-              explanation: option.explanation
-            }))
+      // Prepare question data
+      const questionCreateData = {
+        text,
+        type,
+        difficulty,
+        marks,
+        timeLimit,
+        examCategoryId,
+        remark,
+        tableData,
+        answerSections,
+        createdBy,
+        updatedAt: new Date()
+      };
+
+      // Add options for question types that need them
+      if (options && Array.isArray(options) && options.length > 0) {
+        // For essay questions, store the correct answer as an option with isCorrect: true
+        if (type === 'ESSAY') {
+          // For essay questions, the first option should be the correct answer
+          const correctAnswer = options[0]?.text || '';
+          if (correctAnswer) {
+            questionCreateData.options = {
+              create: [{
+                text: correctAnswer,
+                isCorrect: true
+              }]
+            };
           }
-        },
+        } else if (['MULTIPLE_CHOICE', 'SINGLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'SHORT_ANSWER', 'ACCOUNTING_TABLE', 'COMPOUND_CHOICE'].includes(type)) {
+          // For SHORT_ANSWER questions, the first option should be the expected answer
+          if (type === 'SHORT_ANSWER' && options.length > 0) {
+            questionCreateData.options = {
+              create: [{
+                text: options[0].text,
+                isCorrect: true
+              }]
+            };
+          } else if (type === 'ACCOUNTING_TABLE' && options.length > 0) {
+            // For ACCOUNTING_TABLE questions, store all options
+            questionCreateData.options = {
+              create: options.map(option => ({
+                text: option.text,
+                isCorrect: option.isCorrect
+              }))
+            };
+          } else if (type === 'COMPOUND_CHOICE' && options.length > 0) {
+            // For COMPOUND_CHOICE questions, store all options
+            questionCreateData.options = {
+              create: options.map(option => ({
+                text: option.text,
+                isCorrect: option.isCorrect
+              }))
+            };
+          } else {
+            questionCreateData.options = {
+              create: options.map(option => ({
+                text: option.text,
+                isCorrect: option.isCorrect
+              }))
+            };
+          }
+        }
+      }
+
+      // Add images if present
+      if (images && Array.isArray(images) && images.length > 0) {
+        questionCreateData.images = {
+          create: (images || []).map(image => ({
+            imageUrl: image.imageUrl,
+            altText: image.altText,
+            sortOrder: image.sortOrder || 0
+          }))
+        };
+      }
+
+      // Create question
+      const question = await prisma.question.create({
+        data: questionCreateData,
         include: {
           options: true,
-          examCategory: {
+          images: true,
+          exam_categories: {
             select: { name: true }
           }
         }
@@ -71,7 +135,8 @@ class QuestionService {
             questionText: text.substring(0, 100) + '...',
             category: category.name,
             difficulty,
-            type
+            type,
+            imageCount: (images || []).length
           },
           ipAddress: 'system',
           userAgent: 'question-service'
@@ -81,7 +146,8 @@ class QuestionService {
       return { success: true, question };
     } catch (error) {
       logger.error('Create question failed', error);
-      return { success: false, message: 'Failed to create question' };
+      console.error('Detailed error:', error.message, error.stack);
+      return { success: false, message: 'Failed to create question', error: error.message };
     }
   }
 
@@ -109,13 +175,14 @@ class QuestionService {
 
       if (isActive !== undefined) {
         where.isActive = isActive;
+      } else {
+        // Temporarily show all questions for debugging
+        where.isActive = true;
       }
 
       if (search) {
         where.OR = [
-          { text: { contains: search, mode: 'insensitive' } },
-          { explanation: { contains: search, mode: 'insensitive' } },
-          { tags: { has: search } }
+          { text: { contains: search, mode: 'insensitive' } }
         ];
       }
 
@@ -130,14 +197,10 @@ class QuestionService {
                 isCorrect: true
               }
             },
-            examCategory: {
+            exam_categories: {
               select: { name: true, color: true }
             },
-            _count: {
-              select: {
-                responses: true
-              }
-            }
+            images: true
           },
           orderBy: { createdAt: 'desc' },
           skip,
@@ -172,7 +235,8 @@ class QuestionService {
         where: { id: questionId },
         include: {
           options: true,
-          examCategory: {
+          images: true,
+          exam_categories: {
             select: { name: true }
           }
         }
@@ -192,7 +256,7 @@ class QuestionService {
     try {
       const question = await prisma.question.findUnique({
         where: { id: questionId },
-        include: { options: true }
+        include: { options: true, images: true }
       });
 
       if (!question) {
@@ -206,14 +270,51 @@ class QuestionService {
           where: { questionId }
         });
 
-        // Create new options
-        updateData.options = {
-          create: updateData.options.map(option => ({
-            text: option.text,
-            isCorrect: option.isCorrect,
-            explanation: option.explanation
-          }))
-        };
+        // Create new options based on question type
+        if (question.type === 'ESSAY') {
+          // For essay questions, store the correct answer as an option with isCorrect: true
+          const correctAnswer = updateData.options[0]?.text || '';
+          if (correctAnswer) {
+            updateData.options = {
+              create: [{
+                text: correctAnswer,
+                isCorrect: true
+              }]
+            };
+          }
+        } else {
+          // For other question types, create all options
+          updateData.options = {
+            create: updateData.options.map(option => ({
+              text: option.text,
+              isCorrect: option.isCorrect,
+              explanation: option.explanation
+            }))
+          };
+        }
+      }
+
+      // Handle images update
+      if (updateData.images !== undefined) {
+        // Delete existing images and files
+        for (const image of question.images) {
+          await fileUploadService.deleteImageFile(image.imageUrl);
+        }
+        
+        await prisma.questionImage.deleteMany({
+          where: { questionId }
+        });
+
+        // Create new images
+        if (updateData.images && updateData.images.length > 0) {
+          updateData.images = {
+            create: updateData.images.map(image => ({
+              imageUrl: image.imageUrl,
+              altText: image.altText,
+              sortOrder: image.sortOrder || 0
+            }))
+          };
+        }
       }
 
       const updatedQuestion = await prisma.question.update({
@@ -221,7 +322,8 @@ class QuestionService {
         data: updateData,
         include: {
           options: true,
-          examCategory: {
+          images: true,
+          exam_categories: {
             select: { name: true }
           }
         }
@@ -560,9 +662,7 @@ class QuestionService {
     try {
       const where = {
         OR: [
-          { text: { contains: searchTerm, mode: 'insensitive' } },
-          { explanation: { contains: searchTerm, mode: 'insensitive' } },
-          { tags: { has: searchTerm } }
+          { text: { contains: searchTerm, mode: 'insensitive' } }
         ],
         isActive: true
       };
@@ -590,7 +690,7 @@ class QuestionService {
                 isCorrect: true
               }
             },
-            examCategory: {
+            exam_categories: {
               select: { name: true, color: true }
             }
           },

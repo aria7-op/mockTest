@@ -2,10 +2,8 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
-const EmailService = require('./emailService');
 
 const prisma = new PrismaClient();
-const emailService = new EmailService();
 
 class UserService {
   /**
@@ -13,70 +11,189 @@ class UserService {
    */
   async createUser(userData, createdBy) {
     try {
-      const { email, password, firstName, lastName, role = 'STUDENT', phone, dateOfBirth, gender } = userData;
+      const { 
+        email, 
+        password, 
+        firstName, 
+        lastName, 
+        role = 'STUDENT', 
+        phone, 
+        dateOfBirth, 
+        gender,
+        address,
+        departmentId,
+        profilePicture,
+        status = 'active',
+        isPhoneVerified = false,
+        isActive = true,
+        isEmailVerified
+      } = userData;
 
-      // Check if user already exists
+      // Normalize email and add debug logging
+      const normalizedEmail = email.toLowerCase().trim();
+      logger.info('Creating user with email:', { 
+        originalEmail: email, 
+        normalizedEmail, 
+        createdBy,
+        timestamp: new Date().toISOString()
+      });
+
+      // Check if user already exists with better error handling
       const existingUser = await prisma.user.findUnique({
-        where: { email: email.toLowerCase() }
+        where: { email: normalizedEmail }
       });
 
       if (existingUser) {
+        logger.warn('User creation failed - email already exists:', { 
+          email: normalizedEmail, 
+          existingUserId: existingUser.id,
+          existingUserCreatedAt: existingUser.createdAt
+        });
         return { success: false, message: 'User with this email already exists' };
       }
+
+      // Additional check: search for any email that might be similar (case-insensitive)
+      const similarEmails = await prisma.user.findMany({
+        where: {
+          OR: [
+            { email: { equals: normalizedEmail, mode: 'insensitive' } },
+            { email: { contains: normalizedEmail, mode: 'insensitive' } }
+          ]
+        },
+        select: { id: true, email: true }
+      });
+
+      logger.info('Similar emails found:', similarEmails);
+
+      // Filter out exact matches (should be empty after first check)
+      const exactMatches = similarEmails.filter(u => u.email.toLowerCase() === normalizedEmail);
+      if (exactMatches.length > 0) {
+        logger.warn('User creation failed - exact email match found after initial check:', { 
+          email: normalizedEmail, 
+          matches: exactMatches 
+        });
+        return { success: false, message: 'User with this email already exists' };
+      }
+
+      // Check for very similar emails that might cause confusion
+      const verySimilarEmails = similarEmails.filter(u => {
+        const emailLower = u.email.toLowerCase();
+        return emailLower !== normalizedEmail && 
+               (emailLower.includes(normalizedEmail) || normalizedEmail.includes(emailLower));
+      });
+
+      if (verySimilarEmails.length > 0) {
+        logger.warn('User creation failed - very similar email exists:', { 
+          requestedEmail: normalizedEmail, 
+          similarEmails: verySimilarEmails 
+        });
+        return { success: false, message: 'User with a very similar email already exists' };
+      }
+
+      logger.info('No existing user found, proceeding with creation');
 
       // Hash password
       const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
       const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          email: email.toLowerCase(),
-          password: hashedPassword,
-          firstName,
-          lastName,
-          role,
-          phone,
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-          gender,
-          emailVerificationToken: uuidv4(),
-          isEmailVerified: role === 'STUDENT' ? false : true
-        },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isEmailVerified: true,
-          createdAt: true
+      // Create user with transaction to ensure atomicity
+      const user = await prisma.$transaction(async (tx) => {
+        // Final check inside transaction to prevent race conditions
+        const finalCheck = await tx.user.findUnique({
+          where: { email: normalizedEmail }
+        });
+
+        if (finalCheck) {
+          throw new Error('User with this email already exists (race condition detected)');
         }
+
+        // Create user
+        return await tx.user.create({
+          data: {
+            email: normalizedEmail,
+            password: hashedPassword,
+            firstName,
+            lastName,
+            role,
+            phone,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+            gender,
+            address,
+            departmentId,
+            profilePicture,
+            status,
+            isPhoneVerified,
+            isActive,
+            emailVerificationToken: null, // No email verification needed
+            isEmailVerified: role === 'STUDENT' ? true : true // Auto-verify all users since no email verification
+          },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            phone: true,
+            dateOfBirth: true,
+            gender: true,
+            address: true,
+            departmentId: true,
+            profilePicture: true,
+            status: true,
+            isPhoneVerified: true,
+            isEmailVerified: true,
+            isActive: true,
+            createdAt: true
+          }
+        });
       });
 
-      // Send verification email for students
-      if (role === 'STUDENT' && !user.isEmailVerified) {
-        await emailService.sendVerificationEmail(user.email, user.emailVerificationToken);
-      }
+      // Email verification is disabled - all users are auto-verified
+      logger.info('User created successfully - email verification disabled', { 
+        userId: user.id, 
+        email: user.email, 
+        role: user.role 
+      });
 
       // Create audit log
-      await prisma.auditLog.create({
-        data: {
-          userId: createdBy,
-          action: 'USER_CREATED',
-          resource: 'USER',
-          resourceId: user.id,
-          details: {
-            createdUser: user.email,
-            role: user.role
-          },
-          ipAddress: 'system',
-          userAgent: 'user-service'
-        }
-      });
+      try {
+        await prisma.auditLog.create({
+          data: {
+            userId: createdBy,
+            action: 'USER_CREATED',
+            resource: 'USER',
+            resourceId: user.id,
+            details: {
+              createdUser: user.email,
+              role: user.role,
+              emailSent: false // Email verification is disabled
+            },
+            ipAddress: 'system',
+            userAgent: 'user-service'
+          }
+        });
+      } catch (auditError) {
+        logger.error('Failed to create audit log:', auditError);
+        // Don't fail the user creation if audit log fails
+      }
 
-      return { success: true, user };
+      return { 
+        success: true, 
+        user,
+        warnings: [] // No warnings for email verification
+      };
     } catch (error) {
-      logger.error('Create user failed', error);
+      logger.error('Create user failed:', { 
+        error: error.message, 
+        stack: error.stack,
+        email: userData.email,
+        createdBy 
+      });
+      
+      if (error.message.includes('already exists')) {
+        return { success: false, message: error.message };
+      }
+      
       return { success: false, message: 'Failed to create user' };
     }
   }
@@ -122,11 +239,23 @@ class UserService {
             email: true,
             firstName: true,
             lastName: true,
+            phone: true,
+            dateOfBirth: true,
+            gender: true,
+            profileImage: true,
+            profilePicture: true,
+            address: true,
+            departmentId: true,
             role: true,
+            status: true,
             isActive: true,
             isEmailVerified: true,
+            isPhoneVerified: true,
             lastLoginAt: true,
+            loginAttempts: true,
+            lockedUntil: true,
             createdAt: true,
+            updatedAt: true,
             _count: {
               select: {
                 examAttempts: true,
@@ -238,9 +367,22 @@ class UserService {
           email: true,
           firstName: true,
           lastName: true,
+          phone: true,
+          dateOfBirth: true,
+          gender: true,
+          profileImage: true,
+          profilePicture: true,
+          address: true,
+          departmentId: true,
           role: true,
+          status: true,
           isActive: true,
           isEmailVerified: true,
+          isPhoneVerified: true,
+          lastLoginAt: true,
+          loginAttempts: true,
+          lockedUntil: true,
+          createdAt: true,
           updatedAt: true
         }
       });
@@ -311,12 +453,14 @@ class UserService {
         }
       });
 
-      // Send notification email
-      await emailService.sendAccountStatusEmail(user.email, {
-        firstName: user.firstName,
-        isActive,
-        reason
-      });
+      // Send status change notification
+      if (global.notificationService) {
+        await global.notificationService.notifyAccountStatusChanged(user.id, {
+          firstName: user.firstName,
+          isActive,
+          reason
+        });
+      }
 
       return { success: true, user: updatedUser };
     } catch (error) {

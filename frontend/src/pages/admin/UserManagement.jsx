@@ -95,12 +95,6 @@ const UserManagement = () => {
     setShowAddUser(false);
   };
 
-  const handleDeleteUser = (userId) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter(user => user.id !== userId));
-    }
-  };
-
   const handleStatusToggle = (userId) => {
     setUsers(users.map(user => 
       user.id === userId 
@@ -259,13 +253,6 @@ const UserManagement = () => {
                         style={{ padding: '0.5rem', fontSize: '0.875rem' }}
                       >
                         Edit
-                      </button>
-                      <button 
-                        className="btn btn-danger"
-                        style={{ padding: '0.5rem', fontSize: '0.875rem' }}
-                        onClick={() => handleDeleteUser(user.id)}
-                      >
-                        Delete
                       </button>
                     </div>
                   </td>

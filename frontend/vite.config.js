@@ -1,10 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-
+import tailwindcss from '@tailwindcss/vite'
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(),tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -21,15 +21,24 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: true,
+    host: '0.0.0.0', // Allow network access
     proxy: {
+      // Proxy API requests to bypass CORS during development
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://31.97.70.79:5050',
         changeOrigin: true,
-        secure: false,
-      },
-
-    },
+        secure: false, // Allow self-signed certificates
+        rewrite: (path) => path.replace(/^\/api/, '/api/v1'),
+        configure: (proxy, options) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('Proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log('Proxying request:', req.method, req.url);
+          });
+        }
+      }
+    }
   },
   build: {
     outDir: 'dist',
@@ -40,9 +49,8 @@ export default defineConfig({
           vendor: ['react', 'react-dom'],
           router: ['react-router-dom'],
           ui: ['@headlessui/react', '@heroicons/react', 'framer-motion'],
-          charts: ['recharts'],
           forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
-          utils: ['axios', 'date-fns'],
+          utils: ['axios', 'socket.io-client', 'date-fns'],
         },
       },
     },
@@ -54,6 +62,7 @@ export default defineConfig({
       'react-router-dom',
       '@tanstack/react-query',
       'axios',
+      'socket.io-client',
     ],
   },
 })

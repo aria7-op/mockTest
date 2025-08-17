@@ -93,16 +93,39 @@ const ExamResults = () => {
   // Extract data from API response
   const attempt = results || {};
   const certificate = attempt.certificate;
+  const examScore = attempt.examScore; // New detailed score record
   
   const score = attempt.percentage || 0;
   const correctAnswers = attempt.obtainedMarks || 0;
-  const totalQuestions = attempt.totalMarks || 0;
+  const totalQuestions = attempt.exam?.totalQuestions || 0; // Use exam.totalQuestions instead of totalMarks
   const timeSpent = attempt.timeSpent || 0;
+
+  // Extract detailed analytics from examScore
+  const detailedAnalytics = examScore ? {
+    wrongAnswers: examScore.wrongAnswers || 0,
+    unanswered: examScore.unanswered || 0,
+    totalTimeSpent: examScore.totalTimeSpent || 0,
+    averageTimePerQuestion: examScore.averageTimePerQuestion || 0,
+    timeEfficiency: examScore.timeEfficiency || 0,
+    accuracy: examScore.accuracy || 0,
+    speedScore: examScore.speedScore || 0,
+    consistencyScore: examScore.consistencyScore || 0,
+    difficultyScore: examScore.difficultyScore || 0,
+    grade: examScore.grade || 'N/A',
+    easyCorrect: examScore.easyCorrect || 0,
+    easyTotal: examScore.easyTotal || 0,
+    mediumCorrect: examScore.mediumCorrect || 0,
+    mediumTotal: examScore.mediumTotal || 0,
+    hardCorrect: examScore.hardCorrect || 0,
+    hardTotal: examScore.hardTotal || 0
+  } : null;
 
   console.log('🔍 ExamResults Debug:', {
     results,
     attempt,
     certificate,
+    examScore,
+    detailedAnalytics,
     score,
     correctAnswers,
     totalQuestions,
@@ -195,10 +218,24 @@ const ExamResults = () => {
               border: '1px solid var(--primary-200)'
             }}>
               <div style={{ fontSize: '24px', fontWeight: '600', color: 'var(--primary-600)', marginBottom: '4px' }}>
-                {correctAnswers}/{totalQuestions}
+                {correctAnswers}/{attempt.totalMarks || 0}
               </div>
               <div style={{ fontSize: '14px', color: 'var(--secondary-600)' }}>
-                Correct Answers
+                Marks Obtained
+              </div>
+            </div>
+
+            <div style={{
+              background: 'var(--info-50)',
+              padding: '16px',
+              borderRadius: '8px',
+              border: '1px solid var(--info-200)'
+            }}>
+              <div style={{ fontSize: '24px', fontWeight: '600', color: 'var(--info-600)', marginBottom: '4px' }}>
+                {totalQuestions}
+              </div>
+              <div style={{ fontSize: '14px', color: 'var(--secondary-600)' }}>
+                Total Questions
               </div>
             </div>
 
@@ -209,7 +246,7 @@ const ExamResults = () => {
               border: '1px solid var(--success-200)'
             }}>
               <div style={{ fontSize: '24px', fontWeight: '600', color: 'var(--success-600)', marginBottom: '4px' }}>
-                {Math.round((correctAnswers / totalQuestions) * 100)}%
+                {detailedAnalytics ? Math.round(detailedAnalytics.accuracy) : Math.round((correctAnswers / (attempt.totalMarks || 1)) * 100)}%
               </div>
               <div style={{ fontSize: '14px', color: 'var(--secondary-600)' }}>
                 Accuracy
@@ -223,10 +260,24 @@ const ExamResults = () => {
               border: '1px solid var(--warning-200)'
             }}>
               <div style={{ fontSize: '24px', fontWeight: '600', color: 'var(--warning-600)', marginBottom: '4px' }}>
-                {formatTime(timeSpent)}
+                {formatTime(detailedAnalytics ? detailedAnalytics.totalTimeSpent : timeSpent)}
               </div>
               <div style={{ fontSize: '14px', color: 'var(--secondary-600)' }}>
                 Time Spent
+              </div>
+            </div>
+
+            <div style={{
+              background: 'var(--info-50)',
+              padding: '16px',
+              borderRadius: '8px',
+              border: '1px solid var(--info-200)'
+            }}>
+              <div style={{ fontSize: '24px', fontWeight: '600', color: 'var(--info-600)', marginBottom: '4px' }}>
+                {detailedAnalytics ? detailedAnalytics.grade : 'N/A'}
+              </div>
+              <div style={{ fontSize: '14px', color: 'var(--secondary-600)' }}>
+                Grade
               </div>
             </div>
 
@@ -243,6 +294,22 @@ const ExamResults = () => {
                 Time Limit
               </div>
             </div>
+
+            {detailedAnalytics && (
+              <div style={{
+                background: 'var(--purple-50)',
+                padding: '16px',
+                borderRadius: '8px',
+                border: '1px solid var(--purple-200)'
+              }}>
+                <div style={{ fontSize: '24px', fontWeight: '600', color: 'var(--purple-600)', marginBottom: '4px' }}>
+                  {Math.round(detailedAnalytics.timeEfficiency)}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--secondary-600)' }}>
+                  Efficiency
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -270,6 +337,54 @@ const ExamResults = () => {
             Exam Summary
           </h3>
 
+          {/* Exam Breakdown Summary */}
+          <div style={{
+            background: 'var(--primary-50)',
+            border: '2px solid var(--primary-200)',
+            borderRadius: '12px',
+            padding: '24px',
+            marginBottom: '24px',
+            textAlign: 'center'
+          }}>
+            <h4 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--primary-700)', margin: '0 0 16px' }}>
+              📊 Exam Breakdown
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--primary-600)' }}>
+                  {totalQuestions}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--primary-600)' }}>
+                  Total Questions
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--success-600)' }}>
+                  {attempt.totalMarks || 0}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--success-600)' }}>
+                  Total Marks
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--warning-600)' }}>
+                  {correctAnswers}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--warning-600)' }}>
+                  Marks Obtained
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--info-600)' }}>
+                  {score}%
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--info-600)' }}>
+                  Percentage
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
             <div style={{
               padding: '20px',
@@ -290,6 +405,56 @@ const ExamResults = () => {
                 <strong>Status:</strong> {attempt.status}
               </p>
             </div>
+
+            {detailedAnalytics && (
+              <div style={{
+                padding: '20px',
+                border: '1px solid var(--info-200)',
+                borderRadius: '8px',
+                backgroundColor: 'var(--info-50)'
+              }}>
+                <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--info-900)', margin: '0 0 8px' }}>
+                  Performance Analytics
+                </h4>
+                <p style={{ fontSize: '14px', color: 'var(--info-600)', margin: '0 0 4px' }}>
+                  <strong>Wrong Answers:</strong> {detailedAnalytics.wrongAnswers}
+                </p>
+                <p style={{ fontSize: '14px', color: 'var(--info-600)', margin: '0 0 4px' }}>
+                  <strong>Unanswered:</strong> {detailedAnalytics.unanswered}
+                </p>
+                <p style={{ fontSize: '14px', color: 'var(--info-600)', margin: '0 0 4px' }}>
+                  <strong>Avg Time/Question:</strong> {Math.round(detailedAnalytics.averageTimePerQuestion)}s
+                </p>
+                <p style={{ fontSize: '14px', color: 'var(--info-600)', margin: '0 0 4px' }}>
+                  <strong>Speed Score:</strong> {Math.round(detailedAnalytics.speedScore)}
+                </p>
+              </div>
+            )}
+
+            {detailedAnalytics && (
+              <div style={{
+                padding: '20px',
+                border: '1px solid var(--purple-200)',
+                borderRadius: '8px',
+                backgroundColor: 'var(--purple-50)'
+              }}>
+                <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--purple-900)', margin: '0 0 8px' }}>
+                  Difficulty Breakdown
+                </h4>
+                <p style={{ fontSize: '14px', color: 'var(--purple-600)', margin: '0 0 4px' }}>
+                  <strong>Easy:</strong> {detailedAnalytics.easyCorrect}/{detailedAnalytics.easyTotal} ({detailedAnalytics.easyTotal > 0 ? Math.round((detailedAnalytics.easyCorrect / detailedAnalytics.easyTotal) * 100) : 0}%)
+                </p>
+                <p style={{ fontSize: '14px', color: 'var(--purple-600)', margin: '0 0 4px' }}>
+                  <strong>Medium:</strong> {detailedAnalytics.mediumCorrect}/{detailedAnalytics.mediumTotal} ({detailedAnalytics.mediumTotal > 0 ? Math.round((detailedAnalytics.mediumCorrect / detailedAnalytics.mediumTotal) * 100) : 0}%)
+                </p>
+                <p style={{ fontSize: '14px', color: 'var(--purple-600)', margin: '0 0 4px' }}>
+                  <strong>Hard:</strong> {detailedAnalytics.hardCorrect}/{detailedAnalytics.hardTotal} ({detailedAnalytics.hardTotal > 0 ? Math.round((detailedAnalytics.hardCorrect / detailedAnalytics.hardTotal) * 100) : 0}%)
+                </p>
+                <p style={{ fontSize: '14px', color: 'var(--purple-600)', margin: '0 0 4px' }}>
+                  <strong>Difficulty Score:</strong> {Math.round(detailedAnalytics.difficultyScore)}
+                </p>
+              </div>
+            )}
 
             {certificate && (
               <div style={{

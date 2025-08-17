@@ -1,15 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { userAPI, analyticsAPI, examAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
+import { 
+  FiBarChart, 
+  FiCheckCircle, 
+  FiTrendingUp, 
+  FiAward, 
+  FiUser, 
+  FiBookOpen, 
+  FiCalendar, 
+  FiTarget, 
+  FiFileText, 
+  FiClock, 
+  FiStar, 
+  FiBarChart2
+} from 'react-icons/fi';
+
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const [activeTab, setActiveTab] = useState('overview');
+
 
   // Fetch real student data
   const { 
@@ -70,10 +86,10 @@ const StudentDashboard = () => {
   const streak = 0; // Not available in current API
 
   const stats = [
-    { id: 1, title: 'Overall Score', value: `${averageScore}%`, change: '+5%', icon: '📊', color: 'primary', trend: 'up' },
-    { id: 2, title: 'Tests Completed', value: `${completedTests}/${totalTests}`, change: `${completionRate}%`, icon: '✅', color: 'success', trend: 'up' },
-    { id: 3, title: 'Study Streak', value: `${streak} days`, change: '+2', icon: '🔥', color: 'warning', trend: 'up' },
-    { id: 4, title: 'Certificates', value: `${certificates}`, change: '+1', icon: '🏆', color: 'danger', trend: 'up' }
+    { id: 1, title: 'Overall Score', value: `${averageScore}%`, change: '+5%', icon: <FiBarChart size={32} />, color: 'primary', trend: 'up' },
+    { id: 2, title: 'Tests Completed', value: `${completedTests}/${totalTests}`, change: `${completionRate}%`, icon: <FiCheckCircle size={32} />, color: 'success', trend: 'up' },
+    { id: 3, title: 'Study Streak', value: `${streak} days`, change: '+2', icon: <FiTrendingUp size={32} />, color: 'warning', trend: 'up' },
+    { id: 4, title: 'Certificates', value: `${certificates}`, change: '+1', icon: <FiAward size={32} />, color: 'danger', trend: 'up' }
   ];
 
   // Transform recent attempts to match UI format
@@ -113,7 +129,7 @@ const StudentDashboard = () => {
       id: 1,
       title: 'First Test',
       description: 'Completed your first exam',
-      icon: '🎯',
+      icon: <FiTarget size={24} />,
       date: new Date().toLocaleDateString(),
       type: 'milestone'
     },
@@ -121,20 +137,11 @@ const StudentDashboard = () => {
       id: 2,
       title: 'Perfect Score',
       description: 'Achieved 100% on an exam',
-      icon: '⭐',
+      icon: <FiStar size={24} />,
       date: new Date().toLocaleDateString(),
       type: 'achievement'
     }
   ];
-
-  // Study progress from analytics (using trends data)
-  const studyProgress = analytics.trends?.attemptsByDay?.map(day => ({
-    day: new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }),
-    hours: day.attempts || 0,
-    tests: day.attempts || 0
-  })) || [];
-
-  const maxHours = studyProgress.length > 0 ? Math.max(...studyProgress.map(p => p.hours)) : 1;
 
   // Handle errors
   if (profileError || analyticsError || attemptsError || examsError) {
@@ -183,41 +190,53 @@ const StudentDashboard = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
             <div>
               <h1 style={{ fontSize: '36px', fontWeight: '700', marginBottom: '12px' }}>
-                {isLoading ? 'Loading...' : `Welcome back, ${profile.firstName || 'Student'}! 🎓`}
+                {isLoading ? 'Loading...' : `Welcome back, ${profile.firstName || 'Student'}!`} <FiBookOpen size={36} style={{ display: 'inline', marginLeft: '8px' }} />
               </h1>
               <p style={{ fontSize: '18px', opacity: 0.9, marginBottom: '24px' }}>
                 {isLoading ? 'Loading your progress...' : 'Keep up the great work! You\'re making excellent progress in your studies.'}
               </p>
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                 <div style={{
-                  padding: '12px 20px',
+                  padding: '8px 12px',
                   backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   backdropFilter: 'blur(10px)',
-                  fontSize: '14px',
-                  fontWeight: '500'
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  minWidth: 'fit-content',
+                  flex: '1 1 auto'
                 }}>
-                  🆔 {isLoading ? 'Loading...' : (profile.studentId || profile.id || 'N/A')}
+                  <FiUser size={14} style={{ display: 'inline', marginRight: '6px' }} />
+                  {isLoading ? 'Loading...' : (profile.studentId || profile.id || 'N/A')}
                 </div>
                 <div style={{
-                  padding: '12px 20px',
+                  padding: '8px 12px',
                   backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   backdropFilter: 'blur(10px)',
-                  fontSize: '14px',
-                  fontWeight: '500'
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  minWidth: 'fit-content',
+                  flex: '1 1 auto',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
                 }}>
-                  📅 Member since {isLoading ? 'Loading...' : (profile.joinDate ? new Date(profile.joinDate).toLocaleDateString() : 'N/A')}
+                  <FiCalendar size={14} style={{ display: 'inline', marginRight: '6px', flexShrink: 0 }} />
+                  <span style={{ whiteSpace: 'nowrap' }}>Member since {isLoading ? 'Loading...' : (profile.joinDate ? new Date(profile.joinDate).toLocaleDateString() : 'N/A')}</span>
                 </div>
                 <div style={{
-                  padding: '12px 20px',
+                  padding: '8px 12px',
                   backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   backdropFilter: 'blur(10px)',
-                  fontSize: '14px',
-                  fontWeight: '500'
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  minWidth: 'fit-content',
+                  flex: '1 1 auto'
                 }}>
-                  🎯 Level: {isLoading ? 'Loading...' : (profile.level || 'Beginner')}
+                  <FiTarget size={14} style={{ display: 'inline', marginRight: '6px' }} />
+                  Level: {isLoading ? 'Loading...' : (profile.level || 'Beginner')}
                 </div>
               </div>
             </div>
@@ -234,7 +253,7 @@ const StudentDashboard = () => {
               backdropFilter: 'blur(10px)',
               border: '3px solid rgba(255, 255, 255, 0.3)'
             }}>
-              {isLoading ? '⏳' : (profile.avatar || '👨‍🎓')}
+              {isLoading ? <FiClock size={48} /> : (profile.avatar ? <FiUser size={48} /> : <FiBookOpen size={48} />)}
             </div>
           </div>
 
@@ -275,7 +294,8 @@ const StudentDashboard = () => {
                 transition: 'all 0.3s ease'
               }}
             >
-              📝 Take New Test
+              <FiFileText size={16} style={{ display: 'inline', marginRight: '8px' }} />
+              Take New Test
             </button>
           </div>
         </div>
@@ -336,7 +356,10 @@ const StudentDashboard = () => {
               <div className={`dashboard-card-icon ${stat.color}`} style={{
                 fontSize: '32px',
                 width: '80px',
-                height: '80px'
+                height: '80px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}>
                 {stat.icon}
               </div>
@@ -362,7 +385,7 @@ const StudentDashboard = () => {
         border: '2px solid var(--secondary-200)'
       }}>
         <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', borderBottom: '2px solid var(--secondary-200)', paddingBottom: '16px' }}>
-          {['overview', 'performance', 'achievements', 'study'].map((tab) => (
+          {['overview', 'performance', 'achievements'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -379,10 +402,9 @@ const StudentDashboard = () => {
                 color: activeTab === tab ? 'white' : 'var(--secondary-700)'
               }}
             >
-              {tab === 'overview' && '📊 Overview'}
-              {tab === 'performance' && '📈 Performance'}
-              {tab === 'achievements' && '🏆 Achievements'}
-              {tab === 'study' && '📚 Study Progress'}
+              {tab === 'overview' && <><FiBarChart2 size={16} style={{ display: 'inline', marginRight: '8px' }} />Overview</>}
+              {tab === 'performance' && <><FiTrendingUp size={16} style={{ display: 'inline', marginRight: '8px' }} />Performance</>}
+              {tab === 'achievements' && <><FiAward size={16} style={{ display: 'inline', marginRight: '8px' }} />Achievements</>}
             </button>
           ))}
         </div>
@@ -425,12 +447,12 @@ const StudentDashboard = () => {
                       </div>
                       <div style={{ flex: 1 }}>
                         <h4 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '8px' }}>
-                          Loading...
+                          <span><FiBookOpen size={14} style={{ display: 'inline', marginRight: '4px' }} />Loading...</span>
                         </h4>
                         <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: 'var(--secondary-600)' }}>
-                          <span>📚 Loading...</span>
-                          <span>📅 Loading...</span>
-                          <span>⏱️ Loading...</span>
+                          <span><FiBookOpen size={14} style={{ display: 'inline', marginRight: '4px' }} />Loading...</span>
+                          <span><FiCalendar size={14} style={{ display: 'inline', marginRight: '4px' }} />Loading...</span>
+                          <span><FiClock size={14} style={{ display: 'inline', marginRight: '4px' }} />Loading...</span>
                         </div>
                       </div>
                       <div style={{
@@ -486,9 +508,9 @@ const StudentDashboard = () => {
                         {test.title}
                       </h4>
                       <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: 'var(--secondary-600)' }}>
-                        <span>📚 {test.category}</span>
-                        <span>📅 {test.date}</span>
-                        <span>⏱️ {test.timeSpent}</span>
+                        <span><FiBookOpen size={14} style={{ display: 'inline', marginRight: '4px' }} />{test.category}</span>
+                        <span><FiCalendar size={14} style={{ display: 'inline', marginRight: '4px' }} />{test.date}</span>
+                        <span><FiClock size={14} style={{ display: 'inline', marginRight: '4px' }} />{test.timeSpent}</span>
                       </div>
                     </div>
                     <div style={{
@@ -525,7 +547,7 @@ const StudentDashboard = () => {
                       transition: 'all 0.3s ease'
                     }}>
                       <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '12px' }}>
-                        Loading...
+                        <span><FiBookOpen size={14} style={{ display: 'inline', marginRight: '4px' }} />Loading...</span>
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -546,7 +568,7 @@ const StudentDashboard = () => {
                         </div>
                       </div>
                       <button className="btn btn-primary btn-sm" style={{ width: '100%' }} disabled>
-                        ⏳ Loading...
+                        <FiClock size={16} style={{ display: 'inline', marginRight: '8px' }} />Loading...
                       </button>
                     </div>
                   ))
@@ -590,7 +612,7 @@ const StudentDashboard = () => {
                       </div>
                     </div>
                     <button className="btn btn-primary btn-sm" style={{ width: '100%' }}>
-                      📝 Start Preparation
+                      <FiFileText size={16} style={{ display: 'inline', marginRight: '8px' }} />Start Preparation
                     </button>
                   </div>
                   ))
@@ -686,7 +708,7 @@ const StudentDashboard = () => {
                       {achievement.description}
                     </p>
                     <span style={{ fontSize: '12px', color: 'var(--secondary-500)' }}>
-                      🕒 {achievement.date}
+                      <FiClock size={12} style={{ display: 'inline', marginRight: '4px' }} />{achievement.date}
                     </span>
                   </div>
                 </div>
@@ -694,89 +716,9 @@ const StudentDashboard = () => {
             </div>
           </div>
         )}
-
-        {activeTab === 'study' && (
-          <div>
-            <h3 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '24px' }}>
-              Weekly Study Progress
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-              {/* Study Hours Chart */}
-              <div>
-                <h4 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '20px' }}>
-                  Study Hours
-                </h4>
-                <div style={{ display: 'flex', alignItems: 'end', justifyContent: 'space-around', gap: '8px', height: '200px', padding: '20px' }}>
-                  {studyProgress.map((day, index) => (
-                    <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        width: '40px',
-                        height: `${(day.hours / maxHours) * 160}px`,
-                        backgroundColor: 'var(--success-500)',
-                        borderRadius: '8px 8px 0 0',
-                        transition: 'all 0.3s ease',
-                        position: 'relative'
-                      }}>
-                        <div style={{
-                          position: 'absolute',
-                          top: '-25px',
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          color: 'var(--success-600)'
-                        }}>
-                          {day.hours}h
-                        </div>
-                      </div>
-                      <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--secondary-600)' }}>
-                        {day.day}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tests Taken */}
-              <div>
-                <h4 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '20px' }}>
-                  Tests Completed
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {studyProgress.map((day, index) => (
-                    <div key={index} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px 16px',
-                      borderRadius: '12px',
-                      backgroundColor: 'var(--secondary-50)',
-                      border: '1px solid var(--secondary-200)'
-                    }}>
-                      <span style={{ fontSize: '16px', fontWeight: '500', color: 'var(--secondary-700)' }}>
-                        {day.day}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '14px', color: 'var(--secondary-600)' }}>
-                          {day.tests} tests
-                        </span>
-                        {day.tests > 0 && (
-                          <div style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--success-500)'
-                          }}></div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+
 
       {/* Quick Actions */}
       <div style={{
@@ -789,6 +731,44 @@ const StudentDashboard = () => {
         <h3 style={{ fontSize: '24px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '24px' }}>
           Quick Actions
         </h3>
+        
+        {/* Test Notification Button */}
+        <div style={{ marginBottom: '20px' }}>
+          <button
+            onClick={async () => {
+              try {
+                const response = await fetch(`${API_BASE_URL}/test/notification`);
+                const result = await response.json();
+                if (result.success) {
+                  toast.success('Test notification sent! Check your notification icon.');
+                } else {
+                  toast.error('Failed to send test notification');
+                }
+              } catch (error) {
+                toast.error('Error sending test notification');
+                console.error('Test notification error:', error);
+              }
+            }}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: 'var(--primary-500)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            🧪 Test WebSocket Notification
+          </button>
+          <p style={{ fontSize: '12px', color: 'var(--secondary-500)', marginTop: '8px' }}>
+            Click to test if real-time notifications are working
+          </p>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
           <button
             onClick={() => navigate('/student/tests')}
@@ -817,7 +797,7 @@ const StudentDashboard = () => {
               fontSize: '20px',
               color: 'white'
             }}>
-              📝
+              <FiFileText size={24} />
             </div>
             <div>
               <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '4px' }}>
@@ -856,7 +836,7 @@ const StudentDashboard = () => {
               fontSize: '20px',
               color: 'white'
             }}>
-              📊
+              <FiBarChart2 size={24} />
             </div>
             <div>
               <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '4px' }}>
@@ -895,7 +875,7 @@ const StudentDashboard = () => {
               fontSize: '20px',
               color: 'white'
             }}>
-              👤
+              <FiUser size={24} />
             </div>
             <div>
               <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--secondary-900)', marginBottom: '4px' }}>

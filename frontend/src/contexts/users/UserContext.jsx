@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import { adminAPI } from '../../services/api';
 
 const UserContext = createContext();
 
@@ -33,11 +34,6 @@ const userReducer = (state, action) => {
           user.id === action.payload.id ? action.payload : user
         )
       };
-    case 'DELETE_USER':
-      return {
-        ...state,
-        users: state.users.filter(user => user.id !== action.payload)
-      };
     case 'SET_FILTERS':
       return { ...state, filters: { ...state.filters, ...action.payload } };
     default:
@@ -52,21 +48,29 @@ export const UserProvider = ({ children }) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      const newUser = {
-        id: Date.now(),
-        name: userData.name,
+      // Transform frontend data to match backend expectations
+      // The backend auth/register route only expects: email, password, firstName, lastName, role
+      const backendUserData = {
+        firstName: userData.firstName || userData.name?.split(' ')[0] || '',
+        lastName: userData.lastName || userData.name?.split(' ').slice(1).join(' ') || '',
         email: userData.email,
-        role: userData.role || 'employee',
-        department: userData.department || 'General',
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        password: userData.password || 'TempPassword123!',
+        role: (userData.role || 'employee').toLowerCase() // Backend expects lowercase roles
       };
       
+      console.log('Sending user data to backend:', backendUserData);
+      
+      const response = await adminAPI.createUser(backendUserData);
+      const newUser = response.data.data || response.data;
+      
       dispatch({ type: 'ADD_USER', payload: newUser });
+      dispatch({ type: 'SET_LOADING', payload: false });
       return newUser;
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
+      console.error('Create user error:', error);
+      console.error('Error response:', error.response?.data);
+      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || error.message });
+      dispatch({ type: 'SET_LOADING', payload: false });
       throw error;
     }
   };
@@ -75,26 +79,28 @@ export const UserProvider = ({ children }) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      const updatedUser = {
-        ...state.users.find(user => user.id === userId),
-        ...updates,
-        updatedAt: new Date().toISOString()
+      // Transform frontend data to match backend expectations
+      const backendUpdates = {
+        ...updates
       };
       
+      // Handle name field splitting if provided
+      if (updates.name && !updates.firstName && !updates.lastName) {
+        const nameParts = updates.name.split(' ');
+        backendUpdates.firstName = nameParts[0] || '';
+        backendUpdates.lastName = nameParts.slice(1).join(' ') || '';
+        delete backendUpdates.name;
+      }
+      
+      const response = await adminAPI.updateUser(userId, backendUpdates);
+      const updatedUser = response.data.data || response.data;
+      
       dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+      dispatch({ type: 'SET_LOADING', payload: false });
       return updatedUser;
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-      throw error;
-    }
-  };
-
-  const deleteUser = async (userId) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      dispatch({ type: 'DELETE_USER', payload: userId });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
+      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || error.message });
+      dispatch({ type: 'SET_LOADING', payload: false });
       throw error;
     }
   };
@@ -103,48 +109,65 @@ export const UserProvider = ({ children }) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Simulate API call
-      const users = [
-        {
-          id: 1,
-          name: 'John Doe',
-          email: 'john.doe@company.com',
-          role: 'manager',
-          department: 'Engineering',
-          status: 'active',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z'
-        },
-        {
-          id: 2,
-          name: 'Jane Smith',
-          email: 'jane.smith@company.com',
-          role: 'employee',
-          department: 'Marketing',
-          status: 'active',
-          createdAt: '2024-01-02T00:00:00Z',
-          updatedAt: '2024-01-02T00:00:00Z'
-        }
-      ];
+      const response = await adminAPI.getAllUsers(filters);
+      const users = response.data.data || response.data;
       
-      dispatch({ type: 'SET_USERS', payload: users });
-      return users;
+      // Transform backend data to include combined name field for frontend compatibility
+      const transformedUsers = users.map(user => ({
+        ...user,
+        name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.lastName || ''),
+        status: user.isActive ? 'active' : 'inactive'
+      }));
+      
+      dispatch({ type: 'SET_USERS', payload: transformedUsers });
+      dispatch({ type: 'SET_LOADING', payload: false });
+      return transformedUsers;
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
+      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || error.message });
+      dispatch({ type: 'SET_LOADING', payload: false });
       throw error;
     }
   };
 
   const getUserById = async (userId) => {
     try {
-      const user = state.users.find(u => u.id === userId);
-      if (user) {
-        dispatch({ type: 'SET_CURRENT_USER', payload: user });
-        return user;
-      }
-      throw new Error('User not found');
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      const response = await adminAPI.getUserDetails(userId);
+      const user = response.data.data || response.data;
+      
+      // Transform backend data to include combined name field
+      const transformedUser = {
+        ...user,
+        name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : (user.firstName || user.lastName || ''),
+        status: user.isActive ? 'active' : 'inactive'
+      };
+      
+      dispatch({ type: 'SET_CURRENT_USER', payload: transformedUser });
+      dispatch({ type: 'SET_LOADING', payload: false });
+      return transformedUser;
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
+      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || error.message });
+      dispatch({ type: 'SET_LOADING', payload: false });
+      throw error;
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      await adminAPI.deleteUser(userId);
+      
+      // Remove user from local state
+      const updatedUsers = state.users.filter(user => user.id !== userId);
+      dispatch({ type: 'SET_USERS', payload: updatedUsers });
+      dispatch({ type: 'SET_LOADING', payload: false });
+      
+      return true;
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || error.message });
+      dispatch({ type: 'SET_LOADING', payload: false });
       throw error;
     }
   };
@@ -161,9 +184,9 @@ export const UserProvider = ({ children }) => {
     ...state,
     createUser,
     updateUser,
-    deleteUser,
     getUsers,
     getUserById,
+    deleteUser,
     setFilters
   };
 

@@ -19,6 +19,12 @@ const validateExamBooking = (data) => {
         'date.min': 'Scheduled date must be in the future',
         'any.required': 'Scheduled date is required'
       }),
+      attemptsAllowed: Joi.number().integer().min(1).max(10).default(1).messages({
+        'number.base': 'Attempts allowed must be a number',
+        'number.integer': 'Attempts allowed must be a whole number',
+        'number.min': 'Attempts allowed must be at least 1',
+        'number.max': 'Attempts allowed cannot exceed 10'
+      }),
       notes: Joi.string().max(1000).allow('').optional().messages({
         'string.max': 'Notes must not exceed 1000 characters'
       })
@@ -27,6 +33,45 @@ const validateExamBooking = (data) => {
     return schema.validate(data);
   } catch (error) {
     logger.error('Exam booking validation error', error);
+    return { error: { details: [{ message: 'Validation error occurred' }] } };
+  }
+};
+
+/**
+ * Validate admin exam booking creation
+ */
+const validateAdminExamBooking = (data) => {
+  try {
+    const schema = Joi.object({
+      examId: Joi.string().required().messages({
+        'string.empty': 'Exam ID is required',
+        'any.required': 'Exam ID is required'
+      }),
+      userId: Joi.string().required().messages({
+        'string.empty': 'User ID is required',
+        'any.required': 'User ID is required'
+      }),
+      scheduledAt: Joi.alternatives().try(
+        Joi.date(),
+        Joi.string().isoDate(),
+        Joi.string().pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+      ).optional().messages({
+        'alternatives.match': 'Scheduled date must be a valid date or ISO string'
+      }),
+      attemptsAllowed: Joi.number().integer().min(1).max(10).default(1).messages({
+        'number.base': 'Attempts allowed must be a number',
+        'number.integer': 'Attempts allowed must be a whole number',
+        'number.min': 'Attempts allowed must be at least 1',
+        'number.max': 'Attempts allowed cannot exceed 10'
+      }),
+      notes: Joi.string().max(1000).allow('').optional().messages({
+        'string.max': 'Notes must not exceed 1000 characters'
+      })
+    });
+
+    return schema.validate(data);
+  } catch (error) {
+    logger.error('Admin exam booking validation error', error);
     return { error: { details: [{ message: 'Validation error occurred' }] } };
   }
 };
@@ -171,6 +216,7 @@ const validateBookingQuery = (req, res, next) => {
 
 module.exports = {
   validateExamBooking,
+  validateAdminExamBooking,
   validateBookingUpdate,
   validateBookingId,
   validateBookingQuery

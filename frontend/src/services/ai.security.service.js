@@ -62,7 +62,8 @@ class AISecurityService {
   async loadRiskAssessmentModel() {
     // Load TensorFlow.js model for risk assessment
     try {
-      const model = await tf.loadLayersModel('file://./models/risk_assessment_model/model.json');
+      // Use relative path instead of file:// protocol
+      const model = await tf.loadLayersModel('./models/risk_assessment_model/model.json');
       this.riskModels.set('risk_assessment', model);
     } catch (error) {
       // Fallback to rule-based system
@@ -73,7 +74,8 @@ class AISecurityService {
   async loadBehavioralModel() {
     // Load behavioral analysis model
     try {
-      const model = await tf.loadLayersModel('file://./models/behavioral_model/model.json');
+      // Use relative path instead of file:// protocol
+      const model = await tf.loadLayersModel('./models/behavioral_model/model.json');
       this.riskModels.set('behavioral', model);
     } catch (error) {
       this.riskModels.set('behavioral', this.createBehavioralModel());
@@ -83,7 +85,8 @@ class AISecurityService {
   async loadBiometricModel() {
     // Load biometric verification model
     try {
-      const model = await tf.loadLayersModel('file://./models/biometric_model/model.json');
+      // Use relative path instead of file:// protocol
+      const model = await tf.loadLayersModel('./models/biometric_model/model.json');
       this.riskModels.set('biometric', model);
     } catch (error) {
       this.riskModels.set('biometric', this.createBiometricModel());
@@ -93,7 +96,8 @@ class AISecurityService {
   async loadAnomalyDetectionModel() {
     // Load anomaly detection model
     try {
-      const model = await tf.loadLayersModel('file://./models/anomaly_model/model.json');
+      // Use relative path instead of file:// protocol
+      const model = await tf.loadLayersModel('./models/anomaly_model/model.json');
       this.riskModels.set('anomaly', model);
     } catch (error) {
       this.riskModels.set('anomaly', this.createAnomalyModel());

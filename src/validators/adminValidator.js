@@ -40,6 +40,21 @@ const validateUserCreation = (data) => {
     gender: Joi.string().valid('MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY').optional().messages({
       'any.only': 'Invalid gender specified'
     }),
+    address: Joi.string().max(500).optional().messages({
+      'string.max': 'Address cannot exceed 500 characters'
+    }),
+    departmentId: Joi.string().optional().messages({
+      'string.base': 'Department ID must be a valid string'
+    }),
+    profilePicture: Joi.string().uri().optional().messages({
+      'string.uri': 'Profile picture must be a valid URL'
+    }),
+    status: Joi.string().valid('active', 'inactive', 'suspended', 'pending').optional().default('active').messages({
+      'any.only': 'Invalid status specified'
+    }),
+    isPhoneVerified: Joi.boolean().optional().default(false).messages({
+      'boolean.base': 'Phone verification status must be true or false'
+    }),
     isActive: Joi.boolean().default(true),
     isEmailVerified: Joi.boolean().default(false)
   });
@@ -82,6 +97,21 @@ const validateUserUpdate = (data) => {
     }),
     gender: Joi.string().valid('MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY').optional().messages({
       'any.only': 'Invalid gender specified'
+    }),
+    address: Joi.string().max(500).optional().messages({
+      'string.max': 'Address cannot exceed 500 characters'
+    }),
+    departmentId: Joi.string().optional().messages({
+      'string.base': 'Department ID must be a valid string'
+    }),
+    profilePicture: Joi.string().uri().optional().messages({
+      'string.uri': 'Profile picture must be a valid URL'
+    }),
+    status: Joi.string().valid('active', 'inactive', 'suspended', 'pending').optional().messages({
+      'any.only': 'Invalid status specified'
+    }),
+    isPhoneVerified: Joi.boolean().optional().messages({
+      'boolean.base': 'Phone verification status must be true or false'
     }),
     isActive: Joi.boolean().optional(),
     isEmailVerified: Joi.boolean().optional()

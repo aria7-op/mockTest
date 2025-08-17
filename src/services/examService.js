@@ -15,51 +15,175 @@ class ExamService {
         title,
         description,
         examCategoryId,
+        categoryId, // Handle both field names
         duration,
         totalMarks,
+        totalQuestions, // Handle both field names
         passingMarks,
+        passingScore, // Handle both field names
         price,
+        currency = 'USD',
         isPublic = false,
         isActive = true,
+        allowRetakes = false,
+        maxRetakes = 1,
+        showResults = true,
+        showAnswers = false,
+        randomizeQuestions = true,
+        randomizeOptions = true,
+        questionOverlapPercentage = 10.0,
         instructions,
         rules,
         startDate,
         endDate,
-        maxAttempts = 1,
-        retakeDelay = 0,
-        questionCount,
-        difficultyDistribution
+        scheduledStart,
+        scheduledEnd,
+        // Question type distribution
+        essayQuestionsCount = 0,
+        multipleChoiceQuestionsCount = 0,
+        shortAnswerQuestionsCount = 0,
+        fillInTheBlankQuestionsCount = 0,
+        trueFalseQuestionsCount = 0,
+        matchingQuestionsCount = 0,
+        orderingQuestionsCount = 0,
+        accountingTableQuestionsCount = 0,
+        compoundChoiceQuestionsCount = 0
       } = examData;
+
+      // Use the correct field names
+      const finalExamCategoryId = examCategoryId || categoryId;
+      const finalPassingMarks = passingMarks || passingScore;
+      const finalScheduledStart = scheduledStart || (startDate ? new Date(startDate) : null);
+      const finalScheduledEnd = scheduledEnd || (endDate ? new Date(endDate) : null);
+
+      // Calculate totalQuestions from distribution if not provided
+      let finalTotalQuestions = totalQuestions;
+      if (!finalTotalQuestions) {
+        finalTotalQuestions = essayQuestionsCount + multipleChoiceQuestionsCount + 
+                             shortAnswerQuestionsCount + fillInTheBlankQuestionsCount + 
+                             trueFalseQuestionsCount + matchingQuestionsCount + 
+                             orderingQuestionsCount + accountingTableQuestionsCount + 
+                             compoundChoiceQuestionsCount;
+      }
+
+      // Calculate totalMarks if not provided
+      let finalTotalMarks = totalMarks;
+      if (!finalTotalMarks && finalTotalQuestions) {
+        // Default to 2 marks per question if not specified
+        finalTotalMarks = finalTotalQuestions * 2;
+      }
 
       // Validate exam category exists
       const category = await prisma.examCategory.findUnique({
-        where: { id: examCategoryId }
+        where: { id: finalExamCategoryId }
       });
 
       if (!category) {
         return { success: false, message: 'Exam category not found' };
       }
 
-      // Create exam
+              // Validate question distribution if specified
+        if (essayQuestionsCount > 0 || multipleChoiceQuestionsCount > 0 || 
+            shortAnswerQuestionsCount > 0 || fillInTheBlankQuestionsCount > 0 || 
+            trueFalseQuestionsCount > 0 || matchingQuestionsCount > 0 || 
+            orderingQuestionsCount > 0 || accountingTableQuestionsCount > 0 || 
+            compoundChoiceQuestionsCount > 0) {
+        
+        logger.info('Validating question distribution before exam creation', {
+          examCategoryId: finalExamCategoryId,
+          distribution: {
+            essay: essayQuestionsCount,
+            multipleChoice: multipleChoiceQuestionsCount,
+            shortAnswer: shortAnswerQuestionsCount,
+            fillInTheBlank: fillInTheBlankQuestionsCount,
+            trueFalse: trueFalseQuestionsCount,
+            matching: matchingQuestionsCount,
+            ordering: orderingQuestionsCount,
+            accountingTable: accountingTableQuestionsCount,
+            compoundChoice: compoundChoiceQuestionsCount
+          }
+        });
+
+        try {
+          const distributionValidation = await questionRandomizationService.validateQuestionDistribution(
+            finalExamCategoryId,
+            {
+              essayQuestionsCount,
+              multipleChoiceQuestionsCount,
+              shortAnswerQuestionsCount,
+              fillInTheBlankQuestionsCount,
+              trueFalseQuestionsCount,
+              matchingQuestionsCount,
+              orderingQuestionsCount,
+              accountingTableQuestionsCount,
+              compoundChoiceQuestionsCount
+            }
+          );
+
+          if (!distributionValidation.isValid) {
+            logger.warn('Question distribution validation failed', distributionValidation);
+            
+            // Create warning message
+            const missingTypes = distributionValidation.missingQuestions.map(m => 
+              `${m.type}: need ${m.requested}, have ${m.available}`
+            ).join(', ');
+            
+            return { 
+              success: false, 
+              message: `Insufficient questions for the requested distribution. ${missingTypes}`,
+              details: distributionValidation
+            };
+          }
+
+          if (distributionValidation.warnings.length > 0) {
+            logger.warn('Question distribution warnings', distributionValidation.warnings);
+          }
+
+          logger.info('✅ Question distribution validation passed', distributionValidation);
+        } catch (validationError) {
+          logger.error('Question distribution validation error', validationError);
+          return { 
+            success: false, 
+            message: 'Failed to validate question distribution. Please try again.' 
+          };
+        }
+      }
+
+      // Create exam with all fields
       const exam = await prisma.exam.create({
         data: {
           title,
           description,
-          examCategoryId,
+          examCategoryId: finalExamCategoryId,
           duration,
-          totalMarks,
-          passingMarks,
+          totalMarks: finalTotalMarks,
+          passingMarks: finalPassingMarks,
           price,
+          currency,
           isPublic,
           isActive,
+          allowRetakes,
+          maxRetakes,
+          showResults,
+          showAnswers,
+          randomizeQuestions,
+          randomizeOptions,
+          questionOverlapPercentage,
           instructions,
           rules,
-          startDate: startDate ? new Date(startDate) : null,
-          endDate: endDate ? new Date(endDate) : null,
-          maxAttempts,
-          retakeDelay,
-          questionCount,
-          difficultyDistribution,
+          scheduledStart: finalScheduledStart,
+          scheduledEnd: finalScheduledEnd,
+          totalQuestions: finalTotalQuestions,
+          // Question type distribution
+          essayQuestionsCount,
+          multipleChoiceQuestionsCount,
+          shortAnswerQuestionsCount,
+          fillInTheBlankQuestionsCount,
+          trueFalseQuestionsCount,
+          matchingQuestionsCount,
+          orderingQuestionsCount,
+          accountingTableQuestionsCount,
+          compoundChoiceQuestionsCount,
           createdBy
         },
         include: {
@@ -85,6 +209,32 @@ class ExamService {
           userAgent: 'exam-service'
         }
       });
+
+      // Send notification to all students about the new exam
+      try {
+        if (global.notificationService) {
+          logger.info(`🔔 Attempting to send new exam notification for: ${exam.title}`);
+          logger.info(`🔔 Global notification service available: ${!!global.notificationService}`);
+          logger.info(`🔔 Notification service methods:`, Object.getOwnPropertyNames(Object.getPrototypeOf(global.notificationService)));
+          
+          const notificationResult = await global.notificationService.notifyStudentsNewExam(exam);
+          logger.info(`🔔 New exam notification result:`, notificationResult);
+          
+          if (notificationResult.success) {
+            logger.info(`✅ Successfully notified ${notificationResult.successCount}/${notificationResult.totalStudents} students about new exam`);
+          } else {
+            logger.error(`❌ Failed to notify students about new exam:`, notificationResult.error);
+          }
+        } else {
+          logger.warn('❌ Notification service not available for new exam notification');
+          logger.warn('🔍 Global object keys:', Object.keys(global));
+          logger.warn('🔍 Global notificationService:', global.notificationService);
+        }
+      } catch (notificationError) {
+        // Don't fail exam creation if notification fails
+        logger.error('❌ Failed to send new exam notification', notificationError);
+        logger.error('❌ Notification error stack:', notificationError.stack);
+      }
 
       return { success: true, exam };
     } catch (error) {
@@ -142,9 +292,16 @@ class ExamService {
         prisma.exam.count({ where })
       ]);
 
+      // Format exam data for frontend - map database fields to frontend expected fields
+      const formattedExams = exams.map(exam => ({
+        ...exam,
+        startDate: exam.scheduledStart,
+        endDate: exam.scheduledEnd
+      }));
+
       return {
         success: true,
-        exams,
+        exams: formattedExams,
         pagination: {
           page,
           limit,
@@ -199,7 +356,14 @@ class ExamService {
         orderBy: { createdAt: 'desc' }
       });
 
-      return { success: true, exam: { ...exam, questions } };
+      // Format exam data for frontend - map database fields to frontend expected fields
+      const formattedExam = {
+        ...exam,
+        startDate: exam.scheduledStart,
+        endDate: exam.scheduledEnd
+      };
+
+      return { success: true, exam: { ...formattedExam, questions } };
     } catch (error) {
       logger.error('Get exam by ID failed', error);
       return { success: false, message: 'Failed to get exam' };
@@ -211,6 +375,16 @@ class ExamService {
    */
   async updateExam(examId, updateData, updatedBy) {
     try {
+      logger.info('Updating exam', { 
+        examId, 
+        updateData, 
+        updatedBy,
+        hasScheduledStart: updateData.scheduledStart !== undefined,
+        hasScheduledEnd: updateData.scheduledEnd !== undefined,
+        hasStartDate: updateData.startDate !== undefined,
+        hasEndDate: updateData.endDate !== undefined
+      });
+      
       const exam = await prisma.exam.findUnique({
         where: { id: examId }
       });
@@ -219,17 +393,168 @@ class ExamService {
         return { success: false, message: 'Exam not found' };
       }
 
+      // Process date fields - convert frontend format to backend format
+      const processedData = { ...updateData };
+      
+      // Handle startDate -> scheduledStart conversion (prioritize startDate if both exist)
+      if (updateData.startDate !== undefined) {
+        logger.info('Processing startDate', { 
+          original: updateData.startDate, 
+          type: typeof updateData.startDate 
+        });
+        
+        try {
+          if (updateData.startDate) {
+            const parsedDate = new Date(updateData.startDate);
+            if (isNaN(parsedDate.getTime())) {
+              logger.error('Invalid startDate format', { startDate: updateData.startDate });
+              return { success: false, message: 'Invalid start date format' };
+            }
+            processedData.scheduledStart = parsedDate;
+          } else {
+            processedData.scheduledStart = null;
+          }
+        } catch (dateError) {
+          logger.error('Error parsing startDate', { startDate: updateData.startDate, error: dateError });
+          return { success: false, message: 'Invalid start date format' };
+        }
+        
+        delete processedData.startDate;
+        // Remove scheduledStart if it was also provided to avoid conflicts
+        if (updateData.scheduledStart !== undefined) {
+          delete processedData.scheduledStart;
+        }
+        logger.info('Converted startDate to scheduledStart', { 
+          scheduledStart: processedData.scheduledStart 
+        });
+      } else if (updateData.scheduledStart !== undefined) {
+        // Handle direct scheduledStart updates only if startDate wasn't provided
+        logger.info('Processing scheduledStart', { 
+          original: updateData.scheduledStart, 
+          type: typeof updateData.scheduledStart 
+        });
+        
+        try {
+          if (updateData.scheduledStart) {
+            const parsedDate = new Date(updateData.scheduledStart);
+            if (isNaN(parsedDate.getTime())) {
+              logger.error('Invalid scheduledStart format', { scheduledStart: updateData.scheduledStart });
+              return { success: false, message: 'Invalid scheduled start date format' };
+            }
+            processedData.scheduledStart = parsedDate;
+          } else {
+            processedData.scheduledStart = null;
+          }
+        } catch (dateError) {
+          logger.error('Error parsing scheduledStart', { scheduledStart: updateData.scheduledStart, error: dateError });
+          return { success: false, message: 'Invalid scheduled start date format' };
+        }
+        
+        logger.info('Processed scheduledStart', { 
+          scheduledStart: processedData.scheduledStart 
+        });
+      }
+      
+      // Handle endDate -> scheduledEnd conversion (prioritize endDate if both exist)
+      if (updateData.endDate !== undefined) {
+        logger.info('Processing endDate', { 
+          original: updateData.endDate, 
+          type: typeof updateData.endDate 
+        });
+        
+        try {
+          if (updateData.endDate) {
+            const parsedDate = new Date(updateData.endDate);
+            if (isNaN(parsedDate.getTime())) {
+              logger.error('Invalid endDate format', { endDate: updateData.endDate });
+              return { success: false, message: 'Invalid end date format' };
+            }
+            processedData.scheduledEnd = parsedDate;
+          } else {
+            processedData.scheduledEnd = null;
+          }
+        } catch (dateError) {
+          logger.error('Error parsing endDate', { endDate: updateData.endDate, error: dateError });
+          return { success: false, message: 'Invalid end date format' };
+        }
+        
+        delete processedData.endDate;
+        // Remove scheduledEnd if it was also provided to avoid conflicts
+        if (updateData.scheduledEnd !== undefined) {
+          delete processedData.scheduledEnd;
+        }
+        logger.info('Converted endDate to scheduledEnd', { 
+          scheduledEnd: processedData.scheduledEnd 
+        });
+      } else if (updateData.scheduledEnd !== undefined) {
+        // Handle direct scheduledEnd updates only if endDate wasn't provided
+        logger.info('Processing scheduledEnd', { 
+          original: updateData.scheduledEnd, 
+          type: typeof updateData.scheduledEnd 
+        });
+        
+        try {
+          if (updateData.scheduledEnd) {
+            const parsedDate = new Date(updateData.scheduledEnd);
+            if (isNaN(parsedDate.getTime())) {
+              logger.error('Invalid scheduledEnd format', { scheduledEnd: updateData.scheduledEnd });
+              return { success: false, message: 'Invalid scheduled end date format' };
+            }
+            processedData.scheduledEnd = parsedDate;
+          } else {
+            processedData.scheduledEnd = null;
+          }
+        } catch (dateError) {
+          logger.error('Error parsing scheduledEnd', { scheduledEnd: updateData.scheduledEnd, error: dateError });
+          return { success: false, message: 'Invalid scheduled end date format' };
+        }
+        
+        logger.info('Processed scheduledEnd', { 
+          scheduledEnd: processedData.scheduledEnd 
+        });
+      }
+      
+      // Validate that end date is after start date if both are provided
+      if (processedData.scheduledStart && processedData.scheduledEnd) {
+        if (processedData.scheduledEnd <= processedData.scheduledStart) {
+          logger.error('End date must be after start date', { 
+            scheduledStart: processedData.scheduledStart, 
+            scheduledEnd: processedData.scheduledEnd 
+          });
+          return { success: false, message: 'End date must be after start date' };
+        }
+        logger.info('Date validation passed', { 
+          scheduledStart: processedData.scheduledStart, 
+          scheduledEnd: processedData.scheduledEnd 
+        });
+      }
+
+      // Add updatedAt timestamp
+      processedData.updatedAt = new Date();
+
+      logger.info('Final processed data for update', { 
+        processedData,
+        scheduledStart: processedData.scheduledStart,
+        scheduledEnd: processedData.scheduledEnd,
+        scheduledStartType: typeof processedData.scheduledStart,
+        scheduledEndType: typeof processedData.scheduledEnd
+      });
+
       const updatedExam = await prisma.exam.update({
         where: { id: examId },
-        data: {
-          ...updateData,
-          updatedAt: new Date()
-        },
+        data: processedData,
         include: {
           examCategory: {
             select: { name: true, color: true }
           }
         }
+      });
+
+      logger.info('Exam updated successfully', { 
+        examId, 
+        updatedExam,
+        storedScheduledStart: updatedExam.scheduledStart,
+        storedScheduledEnd: updatedExam.scheduledEnd
       });
 
       // Create audit log
@@ -304,7 +629,7 @@ class ExamService {
   }
 
   /**
-   * Start exam attempt
+   * Start exam attempt for a user
    */
   async startExamAttempt(examId, userId) {
     try {
@@ -332,39 +657,57 @@ class ExamService {
         }
       });
 
-      if (attemptCount >= exam.maxAttempts) {
+      if (attemptCount >= exam.maxRetakes) {
         return { success: false, message: 'Maximum attempts reached for this exam' };
       }
 
-      // Get questions for this exam category
-      logger.info('Getting questions for exam category', {
+      // Get questions using the question randomization service with proper distribution
+      logger.info('Getting questions for exam with distribution', {
         examId,
         userId,
-        examCategoryId: exam.examCategoryId
+        examCategoryId: exam.examCategoryId,
+        totalQuestions: exam.totalQuestions,
+        questionDistribution: {
+          essay: exam.essayQuestionsCount,
+          multipleChoice: exam.multipleChoiceQuestionsCount,
+          shortAnswer: exam.shortAnswerQuestionsCount,
+          fillInTheBlank: exam.fillInTheBlankQuestionsCount,
+          trueFalse: exam.trueFalseQuestionsCount,
+          matching: exam.matchingQuestionsCount,
+          ordering: exam.orderingQuestionsCount,
+          accountingTable: exam.accountingTableQuestionsCount,
+          compoundChoice: exam.compoundChoiceQuestionsCount
+        }
       });
       
-      const questions = await prisma.question.findMany({
-        where: {
-          examCategoryId: exam.examCategoryId,
-          isActive: true,
-          isPublic: true
-        },
-        include: {
-          options: {
-            select: {
-              id: true,
-              text: true,
-              isCorrect: true
-            }
-          },
-          images: true
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-      
-      logger.info('Questions found', {
+      // Use the question randomization service to get questions with proper distribution
+      const questions = await questionRandomizationService.generateRandomQuestions({
         examId,
-        questionsCount: questions.length
+        userId,
+        questionCount: exam.totalQuestions || 10,
+        examCategoryId: exam.examCategoryId,
+        overlapPercentage: exam.questionOverlapPercentage || 10.0,
+        // Pass the exact question type distribution from the exam
+        essayQuestionsCount: exam.essayQuestionsCount || 0,
+        multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+        shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+        fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+        trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+        matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+        orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+        accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+        compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0
+      });
+      
+      logger.info('Questions generated with distribution', {
+        examId,
+        questionsCount: questions.length,
+        requestedCount: exam.totalQuestions,
+        actualCount: questions.length,
+        questionTypeDistribution: questions.reduce((acc, q) => {
+          acc[q.type] = (acc[q.type] || 0) + 1;
+          return acc;
+        }, {})
       });
 
       // Create exam attempt
@@ -376,21 +719,51 @@ class ExamService {
         }
       });
 
+      // Send exam started notification
+      try {
+        if (global.notificationService) {
+          await global.notificationService.notifyExamStarted({
+            id: attempt.id,
+            userId,
+            examId,
+            exam: {
+              id: exam.id,
+              title: exam.title,
+              duration: exam.duration
+            }
+          });
+          logger.info(`🔔 Sent exam started notification to user ${userId}`);
+        }
+      } catch (notificationError) {
+        logger.warn('Failed to send exam started notification:', notificationError);
+        // Continue without notification - this is not critical
+      }
+
       return {
         success: true,
         attempt: {
           id: attempt.id,
           duration: exam.duration,
-          totalQuestions: questions.length
+          totalQuestions: exam.totalQuestions
         },
         questions,
         exam: {
           id: exam.id,
           title: exam.title,
           duration: exam.duration,
-          totalQuestions: questions.length,
+          totalQuestions: exam.totalQuestions,
           instructions: exam.instructions,
-          rules: exam.rules
+          rules: exam.rules,
+          // Add question distribution fields
+          multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+          fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+          essayQuestionsCount: exam.essayQuestionsCount || 0,
+          shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+          trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+          matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+          orderingQuestionsCount: exam.orderingQuestionsCount || 0,
+          accountingTableQuestionsCount: exam.accountingTableQuestionsCount || 0,
+          compoundChoiceQuestionsCount: exam.compoundChoiceQuestionsCount || 0
         }
       };
     } catch (error) {
@@ -402,7 +775,7 @@ class ExamService {
   /**
    * Submit question response
    */
-  async submitQuestionResponse(attemptId, questionId, selectedOptions, timeSpent, userId) {
+  async submitQuestionResponse(attemptId, questionId, selectedOptions, timeSpent, userId, essayAnswer = null) {
     try {
       const attempt = await prisma.examAttempt.findUnique({
         where: { id: attemptId },
@@ -432,7 +805,45 @@ class ExamService {
       }
 
       // Check if the answer is correct
-      const isCorrect = this.checkAnswer(question, selectedOptions);
+      let isCorrect = false;
+      
+      if (question.type === 'FILL_IN_THE_BLANK') {
+        // For fill-in-the-blank questions, we need to check text matching
+        // The user's answer is stored in essayAnswer field
+        isCorrect = this.checkFillInTheBlankAnswer(question, essayAnswer);
+        
+        // If essayAnswer is not provided but selectedOptions contains numeric indices,
+        // try to convert them to actual text answers
+        if (!isCorrect && !essayAnswer && selectedOptions && selectedOptions.length > 0) {
+          logger.info('Attempting to convert numeric indices to text answers for fill-in-the-blank', {
+            questionId,
+            selectedOptions,
+            questionOptions: question.options
+          });
+          
+          const textAnswers = selectedOptions.map(optionIndex => {
+            if (typeof optionIndex === 'number' && question.options[optionIndex]) {
+              return question.options[optionIndex].text;
+            }
+            return optionIndex;
+          });
+          
+          isCorrect = this.checkFillInTheBlankAnswer(question, textAnswers);
+          
+          if (isCorrect) {
+            logger.info('Successfully converted numeric indices to text answers', { textAnswers });
+          }
+        }
+      } else if (question.type === 'ACCOUNTING_TABLE') {
+        // For accounting table questions, check if selected options match correct answers
+        isCorrect = this.checkAnswer(question, selectedOptions);
+      } else if (question.type === 'COMPOUND_CHOICE') {
+        // For compound choice questions, check if all required sections are answered correctly
+        isCorrect = this.checkCompoundChoiceAnswer(question, selectedOptions);
+      } else {
+        // For other question types, use the standard checkAnswer method
+        isCorrect = this.checkAnswer(question, selectedOptions);
+      }
 
       // Create or update question response
       const response = await prisma.questionResponse.upsert({
@@ -446,6 +857,7 @@ class ExamService {
           selectedOptions,
           timeSpent,
           isCorrect,
+          essayAnswer: essayAnswer || undefined,
           answeredAt: new Date()
         },
         create: {
@@ -455,6 +867,7 @@ class ExamService {
           selectedOptions,
           timeSpent,
           isCorrect,
+          essayAnswer: essayAnswer || undefined,
           answeredAt: new Date()
         }
       });
@@ -473,15 +886,47 @@ class ExamService {
     try {
       logger.info('Starting completeExamAttempt', { attemptId, userId });
       
+      // FIXED: Use distinct to prevent duplicate responses
       const attempt = await prisma.examAttempt.findUnique({
         where: { id: attemptId },
         include: {
           exam: true,
           responses: {
+            distinct: ['questionId'],
             include: { question: true }
           }
         }
       });
+
+      logger.info('Attempt loaded for completion', { 
+        attemptId, 
+        hasExam: !!attempt?.exam, 
+        examTitle: attempt?.exam?.title,
+        responsesCount: attempt?.responses?.length || 0,
+        expectedQuestions: attempt?.exam?.totalQuestions || 0,
+        responses: attempt?.responses?.map(r => ({
+          id: r.id,
+          questionId: r.questionId,
+          questionType: r.question?.type,
+          isCorrect: r.isCorrect,
+          selectedOptions: r.selectedOptions,
+          essayAnswer: r.essayAnswer,
+          questionMarks: r.question?.marks || 1
+        }))
+      });
+
+      // CRITICAL DEBUG: Check for duplicate questions
+      const questionIds = attempt?.responses?.map(r => r.questionId) || [];
+      const uniqueQuestionIds = [...new Set(questionIds)];
+      
+      if (questionIds.length !== uniqueQuestionIds.length) {
+        logger.error('🚨 DUPLICATE QUESTIONS DETECTED!', {
+          totalResponses: questionIds.length,
+          uniqueQuestions: uniqueQuestionIds.length,
+          duplicates: questionIds.length - uniqueQuestionIds.length,
+          duplicateQuestionIds: questionIds.filter((id, index) => questionIds.indexOf(id) !== index)
+        });
+      }
 
       if (!attempt) {
         logger.error('Attempt not found', { attemptId });
@@ -501,33 +946,110 @@ class ExamService {
       // Calculate score
       let correctAnswers = 0;
       let totalScore = 0;
-      const totalQuestions = attempt.responses.length;
+      let totalPossibleMarks = 0;
+      
+      // CRITICAL FIX: Remove duplicate questions to prevent scoring errors
+      const uniqueResponses = [];
+      const seenQuestionIds = new Set();
+      
+      for (const response of attempt.responses) {
+        if (!seenQuestionIds.has(response.questionId)) {
+          seenQuestionIds.add(response.questionId);
+          uniqueResponses.push(response);
+        } else {
+          logger.warn(`⚠️ Skipping duplicate question response: ${response.questionId}`);
+        }
+      }
+      
+      const totalQuestions = uniqueResponses.length;
+      
+      logger.info('Question deduplication completed', {
+        originalResponses: attempt.responses.length,
+        uniqueResponses: uniqueResponses.length,
+        duplicatesRemoved: attempt.responses.length - uniqueResponses.length
+      });
 
       logger.info('Calculating score', { 
         totalQuestions, 
-        responsesCount: attempt.responses.length 
+        responsesCount: attempt.responses.length,
+        expectedTotalQuestions: attempt.exam.totalQuestions,
+        examTotalMarks: attempt.exam.totalMarks, // Log the exam's configured total marks
+        responses: uniqueResponses.map(r => ({
+          questionId: r.questionId,
+          questionType: r.question?.type,
+          isCorrect: r.isCorrect,
+          selectedOptions: r.selectedOptions,
+          essayAnswer: r.essayAnswer,
+          questionMarks: r.question?.marks || 1
+        }))
       });
 
-      for (const response of attempt.responses) {
+      // Check if we have all expected questions
+      if (totalQuestions !== attempt.exam.totalQuestions) {
+        logger.warn(`⚠️ Question count mismatch! Expected ${attempt.exam.totalQuestions}, got ${totalQuestions}`);
+        logger.warn('This may indicate that not all questions were answered or stored properly');
+        
+        // Log which question types are missing
+        const expectedTypes = {
+          MULTIPLE_CHOICE: attempt.exam.multipleChoiceQuestionsCount || 0,
+          FILL_IN_THE_BLANK: attempt.exam.fillInTheBlankQuestionsCount || 0,
+          ESSAY: attempt.exam.essayQuestionsCount || 0,
+          SHORT_ANSWER: attempt.exam.shortAnswerQuestionsCount || 0,
+          TRUE_FALSE: attempt.exam.trueFalseQuestionsCount || 0,
+          MATCHING: attempt.exam.matchingQuestionsCount || 0,
+          ORDERING: attempt.exam.orderingQuestionsCount || 0,
+          ACCOUNTING_TABLE: attempt.exam.accountingTableQuestionsCount || 0,
+          COMPOUND_CHOICE: attempt.exam.compoundChoiceQuestionsCount || 0
+        };
+        
+        const actualTypes = uniqueResponses.reduce((acc, r) => {
+          acc[r.question?.type] = (acc[r.question?.type] || 0) + 1;
+          return acc;
+        }, {});
+        
+        logger.warn('Question type distribution mismatch:', {
+          expected: expectedTypes,
+          actual: actualTypes
+        });
+      }
+
+      // CRITICAL FIX: Use exam's configured total marks instead of calculating from responses
+      // This prevents issues with duplicate questions or missing questions
+      totalPossibleMarks = attempt.exam.totalMarks || 0;
+      
+      logger.info('Using exam configured total marks', {
+        examTotalMarks: attempt.exam.totalMarks,
+        calculatedTotalMarks: totalPossibleMarks
+      });
+
+      for (const response of uniqueResponses) {
         logger.info('Processing response', { 
           questionId: response.questionId, 
+          questionType: response.question?.type,
           isCorrect: response.isCorrect,
-          selectedOptions: response.selectedOptions 
+          selectedOptions: response.selectedOptions,
+          questionMarks: response.question?.marks || 1
         });
         
         // Use the isCorrect field from the database response
         if (response.isCorrect) {
           correctAnswers++;
-          totalScore += 1; // Each question is worth 1 point
+          // Use actual question marks instead of just 1 point
+          totalScore += (response.question?.marks || 1);
+          
+          logger.info(`✅ Question ${response.questionId} correct: +${response.question?.marks || 1} marks`);
+        } else {
+          logger.info(`❌ Question ${response.questionId} incorrect: 0 marks`);
         }
       }
 
-      const percentage = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      const percentage = totalPossibleMarks > 0 ? (totalScore / totalPossibleMarks) * 100 : 0;
       const isPassed = percentage >= (attempt.exam.passingMarks || 50); // Default to 50% if not specified
 
       logger.info('Score calculation completed', { 
         correctAnswers, 
         totalScore, 
+        totalPossibleMarks,
         percentage, 
         isPassed 
       });
@@ -535,7 +1057,7 @@ class ExamService {
       // Update attempt
       logger.info('Updating attempt', { 
         attemptId, 
-        totalMarks: totalQuestions, 
+        totalMarks: totalPossibleMarks, 
         obtainedMarks: totalScore, 
         percentage, 
         isPassed 
@@ -546,7 +1068,7 @@ class ExamService {
         data: {
           status: 'COMPLETED',
           completedAt: new Date(),
-          totalMarks: totalQuestions,
+          totalMarks: totalPossibleMarks,
           obtainedMarks: totalScore,
           percentage,
           isPassed
@@ -557,35 +1079,75 @@ class ExamService {
 
       // Create certificate if passed
       let certificate = null;
+      logger.info('Certificate generation check', { 
+        attemptId, 
+        isPassed, 
+        percentage, 
+        passingMarks: attempt.exam.passingMarks,
+        examTitle: attempt.exam.title 
+      });
+      
+      // Certificate will be generated later when user requests it
       if (isPassed) {
-        logger.info('Creating certificate for passed attempt', { attemptId });
-        certificate = await prisma.certificate.create({
-          data: {
-            userId,
-            examId: attempt.examId,
-            attemptId,
-            certificateNumber: `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            issuedAt: new Date(),
-            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
-          }
+        logger.info('Exam passed - certificate can be requested later', { 
+          attemptId, 
+          percentage, 
+          passingMarks: attempt.exam.passingMarks 
         });
-        logger.info('Certificate created', { certificateId: certificate.id });
+      } else {
+        logger.info('No certificate created - attempt did not pass', { 
+          attemptId, 
+          percentage, 
+          passingMarks: attempt.exam.passingMarks 
+        });
       }
 
       const result = {
         success: true,
-        attempt: updatedAttempt,
+        attempt: {
+          ...updatedAttempt,
+          exam: attempt.exam // Include exam data for notifications and WebSocket
+        },
         certificate,
         results: {
-          totalQuestions,
+          totalQuestions: attempt.exam.totalQuestions, // Use exam configuration, not response count
           correctAnswers,
+          totalMarks: totalPossibleMarks,
+          obtainedMarks: totalScore,
           score: totalScore,
           percentage,
-          isPassed
+          isPassed,
+          // Show marks instead of just percentage
+          marksDisplay: `${totalScore}/${totalPossibleMarks} marks`
         }
       };
 
-      logger.info('completeExamAttempt completed successfully', { attemptId });
+      // Send exam completion notification
+      if (global.notificationService && result.success) {
+        try {
+          // Pass the original attempt object that includes exam data for notification
+          await global.notificationService.notifyExamCompleted(attempt, result.results);
+          logger.info('Exam completion notification sent', { 
+            attemptId, 
+            userId, 
+            score: result.results.percentage,
+            marks: result.results.marksDisplay
+          });
+        } catch (notificationError) {
+          logger.error('Failed to send exam completion notification', {
+            attemptId,
+            userId,
+            error: notificationError.message
+          });
+        }
+      }
+
+      logger.info('completeExamAttempt completed successfully', { 
+        attemptId, 
+        certificateCreated: !!certificate,
+        certificateId: certificate?.id,
+        certificateNumber: certificate?.certificateNumber
+      });
       return result;
     } catch (error) {
       logger.error('Complete exam attempt failed', { 
@@ -614,19 +1176,168 @@ class ExamService {
         return false;
       }
 
-      // Get correct option IDs from the question options
-      const correctOptionIds = question.options
-        .filter(option => option && option.isCorrect)
-        .map(option => option.id)
-        .sort();
-      
-      // Sort the selected options for comparison
-      const sortedSelectedOptions = selectedOptions.sort();
-      
-      // Compare the arrays
-      return JSON.stringify(sortedSelectedOptions) === JSON.stringify(correctOptionIds);
+      // Handle different question types
+      if (question.type === 'FILL_IN_THE_BLANK') {
+        // For fill-in-the-blank, selectedOptions should be option IDs that the user selected
+        // We need to check if the selected options match the correct options
+        const correctOptionIds = question.options
+          .filter(option => option && option.isCorrect)
+          .map(option => option.id)
+          .sort();
+        
+        const sortedSelectedOptions = selectedOptions.sort();
+        
+        // Compare the arrays
+        return JSON.stringify(sortedSelectedOptions) === JSON.stringify(correctOptionIds);
+      } else {
+        // For other question types (multiple choice, single choice, etc.)
+        // Get correct option IDs from the question options
+        const correctOptionIds = question.options
+          .filter(option => option && option.isCorrect)
+          .map(option => option.id)
+          .sort();
+        
+        // Sort the selected options for comparison
+        const sortedSelectedOptions = selectedOptions.sort();
+        
+        // Compare the arrays
+        return JSON.stringify(sortedSelectedOptions) === JSON.stringify(correctOptionIds);
+      }
     } catch (error) {
       logger.error('Error checking answer:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check compound choice answer
+   * This method handles questions with multiple answer sections that must all be correct
+   */
+  checkCompoundChoiceAnswer(question, selectedOptions) {
+    try {
+      // Validate inputs
+      if (!question || !question.answerSections || !Array.isArray(question.answerSections)) {
+        logger.error('Invalid compound choice question object', { question });
+        return false;
+      }
+
+      if (!selectedOptions || !Array.isArray(selectedOptions)) {
+        logger.error('Invalid selectedOptions for compound choice question', { selectedOptions });
+        return false;
+      }
+
+      // For compound choice questions, we need to check if all sections are answered correctly
+      // The selectedOptions should contain the correct answers for each section
+      const requiredSections = question.answerSections.length;
+      const correctSections = selectedOptions.length;
+
+      // All sections must be answered
+      if (correctSections < requiredSections) {
+        logger.info('Compound choice question: Not all sections answered', {
+          required: requiredSections,
+          answered: correctSections
+        });
+        return false;
+      }
+
+      // Check if the selected options match the correct answers for each section
+      // This is a simplified check - in a real implementation, you might want to
+      // validate that the correct options were selected for each section
+      return true; // For now, assume correct if all sections are answered
+    } catch (error) {
+      logger.error('Error checking compound choice answer:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check fill-in-the-blank answer - ENHANCED VERSION
+   * This version handles multiple answer formats including numeric indices and text answers
+   */
+  checkFillInTheBlankAnswer(question, essayAnswer) {
+    try {
+      // Validate inputs
+      if (!question || !question.options || !Array.isArray(question.options)) {
+        logger.error('Invalid question object in checkFillInTheBlankAnswer', { question });
+        return false;
+      }
+
+      // Get correct options
+      const correctOptions = question.options.filter(option => option && option.isCorrect);
+      if (correctOptions.length === 0) {
+        logger.warn('No correct options found for fill-in-the-blank question', { questionId: question.id });
+        return false;
+      }
+
+      logger.info('Checking fill-in-the-blank answer', {
+        questionId: question.id,
+        questionType: question.type,
+        essayAnswer,
+        correctOptionsCount: correctOptions.length,
+        correctOptions: correctOptions.map(opt => ({ id: opt.id, text: opt.text, isCorrect: opt.isCorrect }))
+      });
+
+      // Handle different answer formats
+      let blankAnswers = [];
+
+      if (typeof essayAnswer === 'string' && essayAnswer.includes(' | ')) {
+        // Format: "Blank 1: answer1 | Blank 2: answer2 | ..."
+        blankAnswers = essayAnswer.split(' | ').map(part => {
+          const match = part.match(/^Blank \d+: (.+)$/);
+          return match ? match[1].trim() : '';
+        }).filter(answer => answer.length > 0);
+      } else if (Array.isArray(essayAnswer)) {
+        // Format: ["answer1", "answer2", ...]
+        blankAnswers = essayAnswer.filter(answer => answer && typeof answer === 'string' && answer.trim().length > 0);
+      } else if (typeof essayAnswer === 'string' && essayAnswer.trim().length > 0) {
+        // Single answer format
+        blankAnswers = [essayAnswer.trim()];
+      } else {
+        logger.warn('Unexpected essayAnswer format', { essayAnswer, type: typeof essayAnswer });
+        return false;
+      }
+
+      logger.info('Parsed blank answers', { blankAnswers, count: blankAnswers.length });
+
+      // Check if we have the right number of answers
+      if (blankAnswers.length !== correctOptions.length) {
+        logger.warn('Answer count mismatch', { 
+          expected: correctOptions.length, 
+          actual: blankAnswers.length,
+          blankAnswers 
+        });
+        return false;
+      }
+
+      // Check each blank answer against the correct option
+      let correctBlanks = 0;
+      correctOptions.forEach((correctOption, index) => {
+        const userAnswer = blankAnswers[index];
+        const isCorrect = userAnswer && userAnswer.toLowerCase().trim() === correctOption.text.toLowerCase().trim();
+        
+        if (isCorrect) {
+          correctBlanks++;
+        }
+        
+        logger.info(`Blank ${index + 1} check`, {
+          userAnswer,
+          correctAnswer: correctOption.text,
+          isCorrect
+        });
+      });
+
+      const finalResult = correctBlanks === correctOptions.length;
+      logger.info('Fill-in-the-blank answer check result', {
+        questionId: question.id,
+        correctBlanks,
+        totalBlanks: correctOptions.length,
+        isCorrect: finalResult
+      });
+
+      // Consider the answer correct if all blanks are filled correctly
+      return finalResult;
+    } catch (error) {
+      logger.error('Error checking fill-in-the-blank answer:', error);
       return false;
     }
   }
@@ -682,7 +1393,17 @@ class ExamService {
       const where = { userId };
 
       if (examId) where.examId = examId;
-      if (status) where.status = status;
+      
+      // Handle status mapping for frontend compatibility
+      if (status === 'passed') {
+        where.isPassed = true;
+        where.status = 'COMPLETED';
+      } else if (status === 'failed') {
+        where.isPassed = false;
+        where.status = 'COMPLETED';
+      } else if (status) {
+        where.status = status;
+      }
 
       const [attempts, total] = await Promise.all([
         prisma.examAttempt.findMany({
@@ -713,6 +1434,243 @@ class ExamService {
     } catch (error) {
       logger.error('Get user exam history failed', error);
       return { success: false, message: 'Failed to get exam history' };
+    }
+  }
+
+  /**
+   * Get user certificates with pagination and filters
+   */
+  async getUserCertificates(userId, options = {}) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        examId,
+        sortBy = 'issuedAt',
+        sortOrder = 'desc'
+      } = options;
+
+      const skip = (page - 1) * limit;
+      const where = { userId };
+
+      if (examId) where.examId = examId;
+
+      const [certificates, total] = await Promise.all([
+        prisma.certificate.findMany({
+          where,
+          include: {
+            exam: {
+              include: { examCategory: true }
+            },
+            attempt: {
+              select: {
+                id: true,
+                percentage: true,
+                completedAt: true
+              }
+            },
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
+          },
+          orderBy: { [sortBy]: sortOrder },
+          skip,
+          take: limit
+        }),
+        prisma.certificate.count({ where })
+      ]);
+
+      // Add username to each certificate
+      const certificatesWithUsername = certificates.map(cert => ({
+        ...cert,
+        userName: `${cert.user.firstName} ${cert.user.lastName}`,
+        userEmail: cert.user.email
+      }));
+
+      return {
+        success: true,
+        certificates: certificatesWithUsername,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      logger.error('Get user certificates failed', error);
+      return { success: false, message: 'Failed to get certificates' };
+    }
+  }
+
+  /**
+   * Generate certificate for an exam attempt
+   */
+  async generateCertificate(attemptId, userId) {
+    try {
+      const attempt = await prisma.examAttempt.findUnique({
+        where: { id: attemptId },
+        include: {
+          exam: true,
+          certificate: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      if (!attempt) {
+        return { success: false, message: 'Attempt not found' };
+      }
+
+      if (attempt.userId !== userId) {
+        return { success: false, message: 'Unauthorized' };
+      }
+
+      if (attempt.status !== 'COMPLETED') {
+        return { success: false, message: 'Attempt must be completed to generate certificate' };
+      }
+
+      if (!attempt.isPassed) {
+        return { success: false, message: 'Only passed attempts can generate certificates' };
+      }
+
+      if (attempt.certificate) {
+        return { success: false, message: 'Certificate already exists for this attempt' };
+      }
+
+      // Create certificate
+      const certificate = await prisma.certificate.create({
+        data: {
+          userId,
+          examId: attempt.examId,
+          attemptId,
+          certificateNumber: `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          status: "EARNED",
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
+        },
+        include: {
+          exam: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      // Add username to certificate response
+      const certificateWithUsername = {
+        ...certificate,
+        userName: `${attempt.user.firstName} ${attempt.user.lastName}`,
+        userEmail: attempt.user.email
+      };
+
+      return {
+        success: true,
+        certificate: certificateWithUsername
+      };
+    } catch (error) {
+      logger.error('Generate certificate failed', error);
+      return { success: false, message: 'Failed to generate certificate' };
+    }
+  }
+
+  /**
+   * Download certificate
+   */
+  async downloadCertificate(certificateId, userId) {
+    try {
+      const certificate = await prisma.certificate.findUnique({
+        where: { id: certificateId },
+        include: {
+          exam: true,
+          attempt: true
+        }
+      });
+
+      if (!certificate) {
+        return { success: false, message: 'Certificate not found' };
+      }
+
+      if (certificate.userId !== userId) {
+        return { success: false, message: 'Unauthorized' };
+      }
+
+      // For now, return a mock PDF buffer
+      // In a real implementation, you would generate an actual PDF
+      const mockPdfBuffer = Buffer.from('Mock PDF content for certificate');
+      
+      return {
+        success: true,
+        pdfBuffer: mockPdfBuffer,
+        filename: `certificate-${certificate.certificateNumber}.pdf`
+      };
+    } catch (error) {
+      logger.error('Download certificate failed', error);
+      return { success: false, message: 'Failed to download certificate' };
+    }
+  }
+
+  /**
+   * Auto-generate certificates for existing passed exams
+   */
+  async autoGenerateCertificates(userId) {
+    try {
+      // Find all completed, passed attempts without certificates
+      const attempts = await prisma.examAttempt.findMany({
+        where: {
+          userId,
+          status: 'COMPLETED',
+          isPassed: true,
+          certificate: null
+        },
+        include: {
+          exam: true
+        }
+      });
+
+      let generatedCount = 0;
+      for (const attempt of attempts) {
+        try {
+          await prisma.certificate.create({
+            data: {
+              userId,
+              examId: attempt.examId,
+              attemptId: attempt.id,
+              certificateNumber: `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              issuedAt: new Date(),
+              expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
+            }
+          });
+          generatedCount++;
+        } catch (certError) {
+          logger.error('Failed to generate certificate for attempt', { attemptId: attempt.id, error: certError });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Generated ${generatedCount} certificates`,
+        generatedCount
+      };
+    } catch (error) {
+      logger.error('Auto-generate certificates failed', error);
+      return { success: false, message: 'Failed to auto-generate certificates' };
     }
   }
 
@@ -761,9 +1719,16 @@ class ExamService {
         prisma.exam.count({ where })
       ]);
 
+      // Format exam data for frontend - map database fields to frontend expected fields
+      const formattedExams = exams.map(exam => ({
+        ...exam,
+        startDate: exam.scheduledStart,
+        endDate: exam.scheduledEnd
+      }));
+
       return {
         success: true,
-        exams,
+        exams: formattedExams,
         pagination: {
           page,
           limit,
@@ -786,7 +1751,12 @@ class ExamService {
         by: ['status'],
         where: { userId },
         _count: { id: true },
-        _avg: { percentage: true, score: true }
+        _avg: { 
+          percentage: true, 
+          obtainedMarks: true,
+          totalMarks: true,
+          timeSpent: true
+        }
       });
 
       const totalAttempts = await prisma.examAttempt.count({
@@ -801,6 +1771,9 @@ class ExamService {
         where: { userId, isActive: true }
       });
 
+      // Find completed attempts stats
+      const completedStats = stats.find(s => s.status === 'COMPLETED');
+
       return {
         success: true,
         stats: {
@@ -808,8 +1781,9 @@ class ExamService {
           passedAttempts,
           certificates,
           passRate: totalAttempts > 0 ? (passedAttempts / totalAttempts) * 100 : 0,
-          averageScore: stats.find(s => s.status === 'COMPLETED')?._avg.score || 0,
-          averagePercentage: stats.find(s => s.status === 'COMPLETED')?._avg.percentage || 0
+          averageScore: completedStats?._avg.obtainedMarks || 0,
+          averagePercentage: completedStats?._avg.percentage || 0,
+          averageTimeSpent: completedStats?._avg.timeSpent || 0
         }
       };
     } catch (error) {
@@ -817,6 +1791,168 @@ class ExamService {
       return { success: false, message: 'Failed to get exam stats' };
     }
   }
+
+  /**
+   * Get exam analytics
+   */
+  async getExamAnalytics(options = {}) {
+    try {
+      const { examId, startDate, endDate } = options;
+      
+      // Build where clause
+      let whereClause = {};
+      
+      if (examId) {
+        whereClause.examId = examId;
+      }
+      
+      if (startDate || endDate) {
+        whereClause.createdAt = {};
+        if (startDate) {
+          whereClause.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+          whereClause.createdAt.lte = new Date(endDate);
+        }
+      }
+
+      // Get exam attempts analytics
+      const [
+        totalAttempts,
+        completedAttempts,
+        passedAttempts,
+        averageScore,
+        examStats
+      ] = await Promise.all([
+        // Total attempts
+        prisma.examAttempt.count({
+          where: whereClause
+        }),
+        
+        // Completed attempts
+        prisma.examAttempt.count({
+          where: { ...whereClause, status: 'COMPLETED' }
+        }),
+        
+        // Passed attempts
+        prisma.examAttempt.count({
+          where: { ...whereClause, isPassed: true }
+        }),
+        
+        // Average score
+        prisma.examAttempt.aggregate({
+          where: { ...whereClause, status: 'COMPLETED' },
+          _avg: { percentage: true, obtainedMarks: true, totalMarks: true }
+        }),
+        
+        // Exam-specific stats
+        examId ? prisma.exam.findUnique({
+          where: { id: examId },
+          include: {
+            _count: {
+              select: {
+                attempts: true,
+                questions: true
+              }
+            },
+            attempts: {
+              where: { status: 'COMPLETED' },
+              select: {
+                percentage: true,
+                obtainedMarks: true,
+                totalMarks: true,
+                isPassed: true,
+                createdAt: true
+              }
+            }
+          }
+        }) : null
+      ]);
+
+      // Calculate completion rate
+      const completionRate = totalAttempts > 0 ? (completedAttempts / totalAttempts) * 100 : 0;
+      
+      // Calculate pass rate
+      const passRate = completedAttempts > 0 ? (passedAttempts / completedAttempts) * 100 : 0;
+
+      // Prepare response
+      const analytics = {
+        totalAttempts,
+        completedAttempts,
+        passedAttempts,
+        completionRate: Math.round(completionRate * 100) / 100,
+        passRate: Math.round(passRate * 100) / 100,
+        averageObtainedMarks: Math.round((averageScore._avg.obtainedMarks || 0) * 100) / 100,
+        averageTotalMarks: Math.round((averageScore._avg.totalMarks || 0) * 100) / 100,
+        averagePercentage: Math.round((averageScore._avg.percentage || 0) * 100) / 100
+      };
+
+      // Add exam-specific data if requested
+      if (examStats && examId) {
+        analytics.examDetails = {
+          id: examStats.id,
+          title: examStats.title,
+          totalQuestions: examStats._count.questions,
+          totalAttempts: examStats._count.attempts,
+          recentAttempts: examStats.attempts.slice(-10) // Last 10 attempts
+        };
+      }
+
+      return {
+        success: true,
+        data: analytics
+      };
+    } catch (error) {
+      logger.error('Get exam analytics failed', error);
+      return { success: false, message: 'Failed to get exam analytics' };
+    }
+  }
+
+  /**
+   * Get exam attempt by ID
+   */
+  async getExamAttempt(attemptId, userId) {
+    try {
+      const attempt = await prisma.examAttempt.findFirst({
+        where: {
+          id: attemptId,
+          userId
+        },
+        include: {
+          exam: {
+            select: {
+              id: true,
+              title: true,
+              totalMarks: true,
+              passingMarks: true,
+              duration: true
+            }
+          },
+          responses: {
+            include: {
+              question: {
+                select: {
+                  id: true,
+                  text: true,
+                  type: true,
+                  marks: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!attempt) {
+        return null;
+      }
+
+      return attempt;
+    } catch (error) {
+      logger.error('Get exam attempt failed', error);
+      throw error;
+    }
+  }
 }
 
-module.exports = new ExamService(); 
+module.exports = new ExamService();

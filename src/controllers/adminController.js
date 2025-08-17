@@ -5,6 +5,7 @@ const UserService = require('../services/userService');
 const examService = require('../services/examService');
 const QuestionService = require('../services/questionService');
 const AnalyticsService = require('../services/analyticsService');
+const FileUploadService = require('../services/fileUploadService');
 const { validateUserCreation, validateUserUpdate, validateBulkUserImport } = require('../validators/adminValidator');
 
 const prisma = new PrismaClient();
@@ -12,6 +13,7 @@ const adminService = new AdminService();
 const userService = new UserService();
 const questionService = new QuestionService();
 const analyticsService = new AnalyticsService();
+const fileUploadService = new FileUploadService();
 
 class AdminController {
   /**
@@ -260,7 +262,7 @@ class AdminController {
     try {
       const { startDate, endDate, role } = req.query;
 
-      const analytics = await userService.getUserAnalytics({
+      const analytics = await analyticsService.getUserAnalytics({
         startDate,
         endDate,
         role
@@ -486,14 +488,58 @@ class AdminController {
   // ========================================
 
   /**
-   * Create question
+   * Create new question
    */
   async createQuestion(req, res) {
     try {
-      const result = await questionService.createQuestion(req.body, req.user.id);
+      let questionData;
+      let images = [];
+
+      // Handle FormData if present (for file uploads)
+      if (req.body.questionData) {
+        try {
+          questionData = JSON.parse(req.body.questionData);
+        } catch (parseError) {
+          return res.status(400).json({
+            success: false,
+            error: {
+              message: 'Invalid question data format'
+            }
+          });
+        }
+      } else {
+        questionData = req.body;
+      }
+
+      // Handle file uploads if present
+      if (req.files && req.files.length > 0) {
+        try {
+          // Process uploaded images
+          const uploadedImages = await fileUploadService.uploadQuestionImages(req.files, null);
+          images = uploadedImages;
+        } catch (uploadError) {
+          logger.error('Image upload failed', uploadError);
+          return res.status(400).json({
+            success: false,
+            error: {
+              message: 'Failed to upload images',
+              details: uploadError.message
+            }
+          });
+        }
+      }
+
+      // Add images to question data
+      questionData.images = images;
+
+      const result = await questionService.createQuestion(questionData, req.user.id);
 
       if (!result.success) {
-        return res.status(400).json(result);
+        return res.status(400).json({
+          success: false,
+          message: result.message || 'Failed to create question',
+          error: result.error
+        });
       }
 
       res.status(201).json({
@@ -513,6 +559,62 @@ class AdminController {
   }
 
   /**
+   * Bulk create questions
+   */
+  async bulkCreateQuestions(req, res) {
+    try {
+      const { questions } = req.body;
+
+      if (!Array.isArray(questions) || questions.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Questions must be a non-empty array'
+          }
+        });
+      }
+
+      const results = [];
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const questionData of questions) {
+        try {
+          const result = await questionService.createQuestion(questionData, req.user.id);
+          if (result.success) {
+            successCount++;
+            results.push({ success: true, question: result.question });
+          } else {
+            errorCount++;
+            results.push({ success: false, error: result.message });
+          }
+        } catch (error) {
+          errorCount++;
+          results.push({ success: false, error: error.message });
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Bulk operation completed. ${successCount} questions created successfully, ${errorCount} failed.`,
+        data: {
+          createdCount: successCount,
+          errorCount,
+          results
+        }
+      });
+    } catch (error) {
+      logger.error('Bulk create questions failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to create questions'
+        }
+      });
+    }
+  }
+
+  /**
    * Get all questions with filters
    */
   async getAllQuestions(req, res) {
@@ -525,7 +627,7 @@ class AdminController {
         examCategoryId,
         difficulty,
         type,
-        isActive: isActive === 'true',
+        isActive: isActive === 'true' ? true : (isActive === 'false' ? false : true), // Default to true
         search
       });
 
@@ -661,7 +763,21 @@ class AdminController {
    */
   async createExam(req, res) {
     try {
-      const result = await examService.createExam(req.body, req.user.id);
+      // Validate exam data
+      const { validateExamCreation } = require('../validators/examValidator');
+      const { error, value } = validateExamCreation(req.body);
+      
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Validation failed',
+            details: error.details
+          }
+        });
+      }
+
+      const result = await examService.createExam(value, req.user.id);
 
       if (!result.success) {
         return res.status(400).json(result);
@@ -715,13 +831,60 @@ class AdminController {
   }
 
   /**
+   * Get exam details (admin)
+   */
+  async getExamDetails(req, res) {
+    try {
+      const { examId } = req.params;
+
+      const result = await examService.getExamById(examId);
+
+      if (!result.success) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            message: result.message || 'Exam not found'
+          }
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { exam: result.exam }
+      });
+    } catch (error) {
+      logger.error('Get exam details failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to get exam details'
+        }
+      });
+    }
+  }
+
+  /**
    * Update exam
    */
   async updateExam(req, res) {
     try {
       const { examId } = req.params;
 
-      const result = await examService.updateExam(examId, req.body, req.user.id);
+      // Validate exam update data
+      const { validateExamUpdate } = require('../validators/examValidator');
+      const { error, value } = validateExamUpdate(req.body);
+      
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Validation failed',
+            details: error.details
+          }
+        });
+      }
+
+      const result = await examService.updateExam(examId, value, req.user.id);
 
       if (!result.success) {
         return res.status(400).json(result);
@@ -824,6 +987,45 @@ class AdminController {
         success: false,
         error: {
           message: 'Failed to get exam analytics'
+        }
+      });
+    }
+  }
+
+  /**
+   * Add question to exam
+   */
+  async addQuestionToExam(req, res) {
+    try {
+      const { examId } = req.params;
+      const { questionId } = req.body;
+
+      if (!questionId) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Question ID is required'
+          }
+        });
+      }
+
+      const result = await examService.addQuestionToExam(examId, questionId, req.user.id);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Question added to exam successfully',
+        data: result.data
+      });
+    } catch (error) {
+      logger.error('Add question to exam failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to add question to exam'
         }
       });
     }
@@ -957,6 +1159,48 @@ class AdminController {
         success: false,
         error: {
           message: 'Failed to create system backup'
+        }
+      });
+    }
+  }
+
+  /**
+   * Test essay scoring system
+   */
+  async testEssayScoring(req, res) {
+    try {
+      const { studentAnswer, correctAnswer, maxMarks, questionData } = req.body;
+
+      if (!studentAnswer || !correctAnswer || !maxMarks) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            message: 'Student answer, correct answer, and max marks are required'
+          }
+        });
+      }
+
+      const EssayScoringService = require('../services/essayScoringService');
+      const essayScoringService = new EssayScoringService();
+
+      const result = await essayScoringService.scoreEssay(
+        studentAnswer,
+        correctAnswer,
+        maxMarks,
+        questionData || {}
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Essay scored successfully',
+        data: result
+      });
+    } catch (error) {
+      logger.error('Essay scoring test failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to score essay'
         }
       });
     }

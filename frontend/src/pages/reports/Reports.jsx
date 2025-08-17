@@ -2,14 +2,7 @@ import React, { useState } from 'react';
 import { useReports } from '../../contexts/reports/ReportsContext';
 
 const Reports = () => {
-  const {
-    reports,
-    generateReport,
-    exportReport,
-    deleteReport,
-    isLoading,
-    error
-  } = useReports();
+  const { reports, generateReport, exportReport, isLoading, error } = useReports();
 
   const [selectedReportType, setSelectedReportType] = useState('attendance');
   const [showGenerateForm, setShowGenerateForm] = useState(false);
@@ -136,12 +129,6 @@ const Reports = () => {
                     className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
                     Export
-                  </button>
-                  <button
-                    onClick={() => deleteReport(report.id)}
-                    className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    Delete
                   </button>
                 </div>
               </div>

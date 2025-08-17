@@ -13,6 +13,15 @@ router.use(auth);
 // Exam browsing and details
 router.get('/available', examController.getAvailableExams);
 router.get('/upcoming', examController.getUpcomingExams);
+
+// User-specific routes (must come before /:examId routes)
+router.get('/history', examController.getUserExamHistory);
+router.get('/stats', examController.getUserExamStats);
+router.get('/analytics', examController.getUserExamAnalytics);
+router.get('/certificates', examController.getUserCertificates);
+router.get('/recommendations', examController.getExamRecommendations);
+
+// Exam-specific routes
 router.get('/:examId', examController.getExamDetails);
 
 // Exam attempts (student only)
@@ -27,17 +36,16 @@ router.post('/attempts/:attemptId/resume', examController.resumeExam);
 
 // Results and history
 router.get('/attempts/:attemptId/results', examController.getExamResults);
-router.get('/history', examController.getUserExamHistory);
-router.get('/stats', examController.getUserExamStats);
-router.get('/analytics', examController.getUserExamAnalytics);
 
-// Leaderboards and certificates
-router.get('/:examId/leaderboard', examController.getExamLeaderboard);
-router.get('/certificates', examController.getUserCertificates);
+// Certificates
+router.post('/attempts/:attemptId/generate-certificate', examController.generateCertificate);
 router.get('/certificates/:certificateId/download', examController.downloadCertificate);
+router.post('/certificates/auto-generate', examController.autoGenerateCertificates);
+
+// Leaderboards
+router.get('/:examId/leaderboard', examController.getExamLeaderboard);
 
 // Recommendations and progress
-router.get('/recommendations', examController.getExamRecommendations);
 router.get('/:examId/progress', examController.getExamProgress);
 router.post('/attempts/:attemptId/progress', examController.saveExamProgress);
 

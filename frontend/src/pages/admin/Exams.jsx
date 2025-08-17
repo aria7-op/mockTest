@@ -29,7 +29,15 @@ const AdminExams = () => {
     isActive: true,
     startDate: '',
     endDate: '',
-    instructions: ''
+    instructions: '',
+    // Question type distribution
+    essayQuestionsCount: 0,
+    multipleChoiceQuestionsCount: 0,
+    shortAnswerQuestionsCount: 0,
+    fillInTheBlankQuestionsCount: 0,
+    trueFalseQuestionsCount: 0,
+    matchingQuestionsCount: 0,
+    orderingQuestionsCount: 0
   });
 
   // WebSocket event handlers for real-time exam updates
@@ -137,8 +145,8 @@ const AdminExams = () => {
   const deleteExamMutation = useMutation({
     mutationFn: (examId) => adminAPI.deleteExam(examId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['exams']);
       toast.success('Exam deleted successfully!');
+      // examsQuery.refetch(); // This line was removed as per the edit hint
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to delete exam');
@@ -147,7 +155,34 @@ const AdminExams = () => {
 
   const handleAddExam = () => {
     if (formData.title && formData.categoryId) {
-      createExamMutation.mutate(formData);
+      const toISODateOrNull = (dateStr) => dateStr ? new Date(`${dateStr}T00:00:00Z`).toISOString() : null;
+      const totalMarks = Number(formData.totalQuestions || 0);
+      const passingPercent = Number(formData.passingScore || 0);
+      const passingMarks = Math.min(totalMarks, Math.max(0, Math.round((totalMarks * passingPercent) / 100)));
+
+      const payload = {
+        title: formData.title,
+        description: formData.description || undefined,
+        examCategoryId: formData.categoryId,
+        duration: Number(formData.duration) || 60,
+        totalMarks: totalMarks || 0,
+        passingMarks,
+        price: 0,
+        currency: 'USD',
+        isActive: !!formData.isActive,
+        isPublic: false,
+        allowRetakes: false,
+        maxRetakes: 0,
+        showResults: true,
+        showAnswers: false,
+        randomizeQuestions: true,
+        randomizeOptions: true,
+        questionOverlapPercentage: 10.0,
+        scheduledStart: toISODateOrNull(formData.startDate),
+        scheduledEnd: toISODateOrNull(formData.endDate)
+      };
+
+      createExamMutation.mutate(payload);
     } else {
       toast.error('Please fill in all required fields');
     }
@@ -165,17 +200,49 @@ const AdminExams = () => {
       isActive: exam.isActive,
       startDate: exam.startDate ? exam.startDate.split('T')[0] : '',
       endDate: exam.endDate ? exam.endDate.split('T')[0] : '',
-      instructions: exam.instructions || ''
+      instructions: exam.instructions || '',
+      // Question type distribution
+      essayQuestionsCount: exam.essayQuestionsCount || 0,
+      multipleChoiceQuestionsCount: exam.multipleChoiceQuestionsCount || 0,
+      shortAnswerQuestionsCount: exam.shortAnswerQuestionsCount || 0,
+      fillInTheBlankQuestionsCount: exam.fillInTheBlankQuestionsCount || 0,
+      trueFalseQuestionsCount: exam.trueFalseQuestionsCount || 0,
+      matchingQuestionsCount: exam.matchingQuestionsCount || 0,
+      orderingQuestionsCount: exam.orderingQuestionsCount || 0
     });
     setShowAddModal(true);
   };
 
   const handleUpdateExam = () => {
     if (editingExam && formData.title && formData.categoryId) {
-      updateExamMutation.mutate({
-        examId: editingExam.id,
-        examData: formData
-      });
+      const toISODateOrNull = (dateStr) => dateStr ? new Date(`${dateStr}T00:00:00Z`).toISOString() : null;
+      const totalMarks = Number(formData.totalQuestions || 0);
+      const passingPercent = Number(formData.passingScore || 0);
+      const passingMarks = Math.min(totalMarks, Math.max(0, Math.round((totalMarks * passingPercent) / 100)));
+
+      const payload = {
+        title: formData.title,
+        description: formData.description || undefined,
+        examCategoryId: formData.categoryId,
+        duration: Number(formData.duration) || 60,
+        totalMarks: totalMarks || 0,
+        passingMarks,
+        price: 0,
+        currency: 'USD',
+        isActive: !!formData.isActive,
+        isPublic: false,
+        allowRetakes: false,
+        maxRetakes: 0,
+        showResults: true,
+        showAnswers: false,
+        randomizeQuestions: true,
+        randomizeOptions: true,
+        questionOverlapPercentage: 10.0,
+        scheduledStart: toISODateOrNull(formData.startDate),
+        scheduledEnd: toISODateOrNull(formData.endDate)
+      };
+
+      updateExamMutation.mutate({ examId: editingExam.id, examData: payload });
     } else {
       toast.error('Please fill in all required fields');
     }
@@ -425,20 +492,6 @@ const AdminExams = () => {
                   >
                     Edit
                   </button>
-                  <button
-                    onClick={() => handleDeleteExam(exam.id)}
-                    style={{
-                      padding: '8px 16px',
-                      border: '1px solid var(--danger-500)',
-                      background: 'transparent',
-                      color: 'var(--danger-500)',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Delete
-                  </button>
                 </div>
               </div>
             ))}
@@ -546,6 +599,186 @@ const AdminExams = () => {
                   }}
                 />
               </div>
+
+              {/* Question Type Distribution */}
+              <div style={{ marginTop: '16px' }}>
+                <h4 style={{ marginBottom: '12px', color: 'var(--text-primary)', fontSize: '16px', fontWeight: '600' }}>
+                  Question Type Distribution
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      Essay Questions
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.essayQuestionsCount}
+                      onChange={(e) => setFormData({...formData, essayQuestionsCount: parseInt(e.target.value) || 0})}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      Multiple Choice
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.multipleChoiceQuestionsCount}
+                      onChange={(e) => setFormData({...formData, multipleChoiceQuestionsCount: parseInt(e.target.value) || 0})}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      Short Answer
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.shortAnswerQuestionsCount}
+                      onChange={(e) => setFormData({...formData, shortAnswerQuestionsCount: parseInt(e.target.value) || 0})}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      Fill in the Blank
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.fillInTheBlankQuestionsCount}
+                      onChange={(e) => setFormData({...formData, fillInTheBlankQuestionsCount: parseInt(e.target.value) || 0})}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      True/False
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.trueFalseQuestionsCount}
+                      onChange={(e) => setFormData({...formData, trueFalseQuestionsCount: parseInt(e.target.value) || 0})}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      Matching
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.matchingQuestionsCount}
+                      onChange={(e) => setFormData({...formData, matchingQuestionsCount: parseInt(e.target.value) || 0})}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                      Ordering
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.orderingQuestionsCount}
+                      onChange={(e) => setFormData({...formData, orderingQuestionsCount: parseInt(e.target.value) || 0})}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        width: '100%'
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                {/* Total validation */}
+                <div style={{ 
+                  marginTop: '8px', 
+                  padding: '8px 12px', 
+                  borderRadius: '6px', 
+                  fontSize: '14px',
+                  backgroundColor: (() => {
+                    const total = formData.essayQuestionsCount + formData.multipleChoiceQuestionsCount + 
+                                 formData.shortAnswerQuestionsCount + formData.fillInTheBlankQuestionsCount + 
+                                 formData.trueFalseQuestionsCount + formData.matchingQuestionsCount + 
+                                 formData.orderingQuestionsCount;
+                    if (total === formData.totalQuestions) {
+                      return 'var(--success-100)';
+                    } else if (total > formData.totalQuestions) {
+                      return 'var(--error-100)';
+                    } else {
+                      return 'var(--warning-100)';
+                    }
+                  })(),
+                  color: (() => {
+                    const total = formData.essayQuestionsCount + formData.multipleChoiceQuestionsCount + 
+                                 formData.shortAnswerQuestionsCount + formData.fillInTheBlankQuestionsCount + 
+                                 formData.trueFalseQuestionsCount + formData.matchingQuestionsCount + 
+                                 formData.orderingQuestionsCount;
+                    if (total === formData.totalQuestions) {
+                      return 'var(--success-600)';
+                    } else if (total > formData.totalQuestions) {
+                      return 'var(--error-600)';
+                    } else {
+                      return 'var(--warning-600)';
+                    }
+                  })()
+                }}>
+                  Total: {formData.essayQuestionsCount + formData.multipleChoiceQuestionsCount + 
+                          formData.shortAnswerQuestionsCount + formData.fillInTheBlankQuestionsCount + 
+                          formData.trueFalseQuestionsCount + formData.matchingQuestionsCount + 
+                          formData.orderingQuestionsCount} / {formData.totalQuestions} questions
+                </div>
+              </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <input
@@ -646,7 +879,15 @@ const AdminExams = () => {
                     isActive: true,
                     startDate: '',
                     endDate: '',
-                    instructions: ''
+                    instructions: '',
+                    // Question type distribution
+                    essayQuestionsCount: 0,
+                    multipleChoiceQuestionsCount: 0,
+                    shortAnswerQuestionsCount: 0,
+                    fillInTheBlankQuestionsCount: 0,
+                    trueFalseQuestionsCount: 0,
+                    matchingQuestionsCount: 0,
+                    orderingQuestionsCount: 0
                   });
                 }}
                 style={{

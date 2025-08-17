@@ -1,0 +1,1 @@
+const http = require("http"); const server = http.createServer((req, res) => { res.writeHead(200, {"Content-Type": "text/plain"}); res.end("Backend Server 2 - " + new Date().toISOString()); }); server.listen(5052, "192.168.0.105", () => console.log("Backend 2 running on port 5052"));

@@ -203,6 +203,19 @@ class AuthService {
         }
       });
 
+      // Send email verification notification
+      if (global.notificationService) {
+        try {
+          await global.notificationService.notifyEmailVerified(user);
+          logger.info('Email verification notification sent', { userId: user.id });
+        } catch (notificationError) {
+          logger.error('Failed to send email verification notification', {
+            userId: user.id,
+            error: notificationError.message
+          });
+        }
+      }
+
       logger.info('Email verified successfully', { userId: user.id });
 
       return { success: true, message: 'Email verified successfully' };
@@ -491,7 +504,8 @@ class AuthService {
           'exam:read', 'exam:create', 'exam:update', 'exam:delete',
           'question:read', 'question:create', 'question:update', 'question:delete',
           'category:read', 'category:create', 'category:update', 'category:delete',
-          'booking:read', 'booking:update',
+          'booking:read', 'booking:update', 'booking:create', 'booking:delete',
+          'calendar:read', 'calendar:update', 'calendar:reschedule',
           'analytics:read'
         ];
 
@@ -506,6 +520,7 @@ class AuthService {
           'question:read', 'question:create', 'question:update',
           'category:read',
           'booking:read', 'booking:update',
+          'calendar:read', 'calendar:update',
           'analytics:read'
         ];
 

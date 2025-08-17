@@ -47,7 +47,8 @@ const Notifications = () => {
   };
 
   const deleteNotification = (id) => {
-    setNotifications(notifications.filter(notification => notification.id !== id));
+    // Remove notification from state
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
   };
 
   const getTypeColor = (type) => {
@@ -144,12 +145,6 @@ const Notifications = () => {
                         Mark as read
                       </button>
                     )}
-                    <button
-                      onClick={() => deleteNotification(notification.id)}
-                      className="text-sm text-red-600 hover:text-red-800"
-                    >
-                      Delete
-                    </button>
                   </div>
                 </div>
               </div>

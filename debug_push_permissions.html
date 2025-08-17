@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Push Notification Permission Debug</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .granted { background: #d1fae5; color: #065f46; }
+        .denied { background: #fee2e2; color: #991b1b; }
+        .default { background: #fef3c7; color: #92400e; }
+        .log {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔔 Push Notification Permission Debug</h1>
+    
+    <div id="support-status"></div>
+    <div id="permission-status"></div>
+    
+    <div>
+        <button onclick="checkStatus()">🔍 Check Status</button>
+        <button onclick="requestPermissionDirect()">📱 Request Permission (Direct)</button>
+        <button onclick="requestPermissionCustom()">🎨 Request Permission (Custom Modal)</button>
+        <button onclick="testNotification()">🧪 Test Notification</button>
+        <button onclick="clearLog()">🗑️ Clear Log</button>
+    </div>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus() {
+            const supportDiv = document.getElementById('support-status');
+            const permissionDiv = document.getElementById('permission-status');
+            
+            if ('Notification' in window) {
+                supportDiv.innerHTML = '<div class="status granted">✅ Push notifications are supported</div>';
+                
+                const permission = Notification.permission;
+                let statusClass = 'default';
+                let statusText = '';
+                
+                switch(permission) {
+                    case 'granted':
+                        statusClass = 'granted';
+                        statusText = '✅ Permission GRANTED - Notifications will work!';
+                        break;
+                    case 'denied':
+                        statusClass = 'denied';
+                        statusText = '❌ Permission DENIED - Enable in browser settings';
+                        break;
+                    case 'default':
+                        statusClass = 'default';
+                        statusText = '⏳ Permission NOT ASKED YET - Click request button';
+                        break;
+                }
+                
+                permissionDiv.innerHTML = `<div class="status ${statusClass}">${statusText}</div>`;
+                log(`Permission status: ${permission}`);
+            } else {
+                supportDiv.innerHTML = '<div class="status denied">❌ Push notifications NOT supported</div>';
+                permissionDiv.innerHTML = '';
+                log('Push notifications not supported in this browser');
+            }
+        }
+
+        function checkStatus() {
+            log('🔍 Checking notification status...');
+            updateStatus();
+        }
+
+        async function requestPermissionDirect() {
+            log('📱 Requesting permission directly...');
+            
+            if (!('Notification' in window)) {
+                log('❌ Notifications not supported');
+                return;
+            }
+
+            try {
+                const permission = await Notification.requestPermission();
+                log(`✅ Permission request result: ${permission}`);
+                updateStatus();
+                
+                if (permission === 'granted') {
+                    log('🎉 Permission granted! Testing with welcome notification...');
+                    new Notification('🎉 Success!', {
+                        body: 'Push notifications are now enabled!',
+                        icon: '/favicon.ico'
+                    });
+                }
+            } catch (error) {
+                log(`❌ Permission request failed: ${error.message}`);
+            }
+        }
+
+        function showCustomModal() {
+            return new Promise((resolve) => {
+                const modal = document.createElement('div');
+                modal.innerHTML = `
+                    <div style="
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.5);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 10000;
+                        font-family: inherit;
+                    ">
+                        <div style="
+                            background: white;
+                            border-radius: 16px;
+                            padding: 32px;
+                            max-width: 400px;
+                            text-align: center;
+                            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+                        ">
+                            <div style="font-size: 48px; margin-bottom: 16px;">🔔</div>
+                            <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 700;">Enable Notifications?</h2>
+                            <p style="margin: 0 0 24px 0; color: #666; line-height: 1.5;">
+                                Get instant updates about your exams and results - even when this tab isn't active.
+                            </p>
+                            <div style="display: flex; gap: 12px; justify-content: center;">
+                                <button id="modal-allow" style="
+                                    background: #3b82f6;
+                                    color: white;
+                                    border: none;
+                                    padding: 12px 24px;
+                                    border-radius: 8px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                ">Allow</button>
+                                <button id="modal-deny" style="
+                                    background: #f3f4f6;
+                                    color: #666;
+                                    border: none;
+                                    padding: 12px 24px;
+                                    border-radius: 8px;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                ">Not Now</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                document.getElementById('modal-allow').onclick = async () => {
+                    document.body.removeChild(modal);
+                    log('👤 User clicked Allow in custom modal');
+                    
+                    try {
+                        const permission = await Notification.requestPermission();
+                        log(`🔔 Browser permission result: ${permission}`);
+                        resolve(permission);
+                    } catch (error) {
+                        log(`❌ Browser permission failed: ${error.message}`);
+                        resolve('denied');
+                    }
+                };
+                
+                document.getElementById('modal-deny').onclick = () => {
+                    document.body.removeChild(modal);
+                    log('👤 User clicked Not Now in custom modal');
+                    resolve('denied');
+                };
+            });
+        }
+
+        async function requestPermissionCustom() {
+            log('🎨 Requesting permission with custom modal...');
+            
+            if (!('Notification' in window)) {
+                log('❌ Notifications not supported');
+                return;
+            }
+
+            const permission = await showCustomModal();
+            log(`✅ Custom modal result: ${permission}`);
+            updateStatus();
+            
+            if (permission === 'granted') {
+                log('🎉 Permission granted via custom modal! Testing notification...');
+                new Notification('🎉 Custom Modal Success!', {
+                    body: 'You enabled notifications through the custom modal!',
+                    icon: '/favicon.ico'
+                });
+            }
+        }
+
+        function testNotification() {
+            log('🧪 Testing notification...');
+            
+            if (!('Notification' in window)) {
+                log('❌ Notifications not supported');
+                return;
+            }
+            
+            if (Notification.permission !== 'granted') {
+                log('❌ Permission not granted - cannot show notification');
+                return;
+            }
+            
+            const notification = new Notification('🧪 Test Notification', {
+                body: 'This is a test notification to verify everything works!',
+                icon: '/favicon.ico',
+                tag: 'test'
+            });
+            
+            log('✅ Test notification sent!');
+            
+            notification.onclick = () => {
+                log('👆 Test notification was clicked!');
+                notification.close();
+            };
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Initialize on page load
+        window.onload = () => {
+            log('🚀 Push notification debug tool loaded');
+            updateStatus();
+        };
+    </script>
+</body>
+</html>

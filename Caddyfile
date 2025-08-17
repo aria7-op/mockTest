@@ -1,0 +1,53 @@
+# Caddy configuration for Mock Test Backend
+# This file should be placed on your VPS host (not in the container)
+
+# Replace yourdomain.com with your actual domain
+yourdomain.com {
+    # Reverse proxy to the LXC container
+    reverse_proxy 10.0.0.100:5000 {
+        # Health checks
+        health_uri /health
+        health_interval 30s
+        health_timeout 10s
+        
+        # Load balancing (if you have multiple instances)
+        lb_policy round_robin
+        
+        # Headers
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up Host {host}
+    }
+    
+    # Logging
+    log {
+        output file /var/log/caddy/backend.log
+        format json
+    }
+    
+    # Security headers
+    header {
+        # Remove server header
+        -Server
+        # Security headers
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    }
+    
+    # Gzip compression
+    encode gzip
+}
+
+# HTTP to HTTPS redirect
+http://yourdomain.com {
+    redir https://yourdomain.com{uri} permanent
+}
+
+# Health check endpoint (optional)
+health.yourdomain.com {
+    reverse_proxy 10.0.0.100:5000/health
+} 

@@ -22,12 +22,14 @@ import TestBookings from './pages/admin/TestBookings';
 import Reports from './pages/admin/Reports';
 import Analytics from './pages/admin/Analytics';
 import Settings from './pages/admin/Settings';
+import AdminProfile from './pages/admin/Profile';
 
 // Student Pages
 import StudentDashboard from './pages/student/Dashboard';
 import StudentTests from './pages/student/Tests';
 import AvailableTests from './pages/student/AvailableTests';
 import StudentHistory from './pages/student/History';
+import StudentCertificates from './pages/student/Certificates';
 import StudentProfile from './pages/student/Profile';
 
 // Exam Pages
@@ -35,7 +37,7 @@ import ExamInterface from './pages/exam/ExamInterface';
 import ExamResults from './pages/exam/ExamResults';
 
 // Components
-import LoadingScreen from './components/LoadingScreen';
+import LoadingScreen from './components/common/LoadingScreen';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
@@ -125,8 +127,10 @@ function App() {
           <Route path="users" element={<Users />} />
           <Route path="bookings" element={<TestBookings />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="certificates" element={<StudentCertificates />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="profile" element={<AdminProfile />} />
         </Route>
 
         {/* Student Routes */}
@@ -136,8 +140,9 @@ function App() {
           </ProtectedRoute>
         }>
           <Route index element={<StudentDashboard />} />
-                          <Route path="tests" element={<AvailableTests />} />
+          <Route path="tests" element={<AvailableTests />} />
           <Route path="history" element={<StudentHistory />} />
+          <Route path="certificates" element={<StudentCertificates />} />
           <Route path="profile" element={<StudentProfile />} />
         </Route>
 

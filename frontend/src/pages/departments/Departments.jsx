@@ -49,10 +49,6 @@ const Departments = () => {
     setShowAddForm(false);
   };
 
-  const handleDeleteDepartment = (id) => {
-    setDepartments(departments.filter(dept => dept.id !== id));
-  };
-
   return (
     <div className="max-w-4xl mx-auto w-full">
       <div className="flex justify-between items-center mb-6">
@@ -128,14 +124,6 @@ const Departments = () => {
                 <span className="text-gray-500">Employees:</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">{department.employeeCount}</span>
               </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => handleDeleteDepartment(department.id)}
-                className="text-red-600 hover:text-red-800 text-sm"
-              >
-                Delete Department
-              </button>
             </div>
           </div>
         ))}

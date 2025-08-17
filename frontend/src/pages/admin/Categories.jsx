@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { categoryAPI, adminAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { FiPlus, FiEdit } from 'react-icons/fi';
 
 const Categories = () => {
   console.log('🚀 Categories component is loading...');
@@ -80,18 +81,6 @@ const Categories = () => {
     }
   });
 
-  // Delete category mutation
-  const deleteCategoryMutation = useMutation({
-    mutationFn: (categoryId) => adminAPI.deleteCategory(categoryId),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['admin-categories']);
-      toast.success('Category deleted successfully!');
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to delete category');
-    }
-  });
-
   const handleAddCategory = () => {
     if (formData.name.trim()) {
       createCategoryMutation.mutate(formData);
@@ -120,12 +109,6 @@ const Categories = () => {
     }
   };
 
-  const handleDeleteCategory = (categoryId) => {
-    if (window.confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
-      deleteCategoryMutation.mutate(categoryId);
-    }
-  };
-
   const categories = categoriesData?.data?.data?.categories || [];
   const filteredCategories = categories.filter(category =>
     category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -141,7 +124,11 @@ const Categories = () => {
 
   const iconOptions = [
     '📚', '💻', '🧮', '🔬', '📝', '🎨', '🌍', '🏥', '⚖️', '💰', 
-    '🚗', '🏠', '🍽️', '👕', '📱', '🎮', '🎵', '🎬', '📺', '📰'
+    '🚗', '🏠', '🍽️', '👕', '📱', '🎮', '🎵', '🎬', '📺', '📰',
+    '🎓', '📖', '✏️', '📊', '🔍', '⚗️', '🧪', '🔬', '📐', '🧮',
+    '🌐', '🗺️', '📈', '📉', '🎯', '🏆', '🥇', '🥈', '🥉', '📋',
+    '🔬', '🧬', '⚡', '💡', '🔋', '🔌', '💻', '🖥️', '⌨️', '🖱️',
+    '📱', '📞', '📧', '🌐', '🔗', '📎', '📌', '📍', '🎪', '🎭'
   ];
 
   const colorOptions = [
@@ -212,7 +199,7 @@ const Categories = () => {
               }}
               title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
             >
-              ➕ Add Category
+                             <FiPlus style={{ marginRight: '4px' }} /> Add Category
             </button>
           </div>
         </div>
@@ -252,11 +239,23 @@ const Categories = () => {
                   }}>
                     {category.name}
                   </h3>
-                  <span className={`badge ${
-                    category.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'
-                  }`} style={{ fontSize: '12px' }}>
-                    {category.status}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: 'var(--secondary-500)', 
+                      fontFamily: 'monospace',
+                      backgroundColor: 'var(--secondary-100)',
+                      padding: '2px 6px',
+                      borderRadius: '4px'
+                    }}>
+                      ID: {category.id}
+                    </span>
+                    <span className={`badge ${
+                      category.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'
+                    }`} style={{ fontSize: '12px' }}>
+                      {category.status}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -310,27 +309,7 @@ const Categories = () => {
                   }}
                   title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
                 >
-                  ✏️ Edit
-                </button>
-                <button 
-                  className="btn btn-danger" 
-                  style={{ 
-                    flex: 1, 
-                    padding: '8px', 
-                    fontSize: '12px',
-                    opacity: currentUser?.role === 'MODERATOR' ? 0.5 : 1,
-                    cursor: currentUser?.role === 'MODERATOR' ? 'not-allowed' : 'pointer'
-                  }}
-                  onClick={() => {
-                    if (currentUser?.role === 'MODERATOR') {
-                      toast.error('Access restricted for your role');
-                      return;
-                    }
-                    handleDeleteCategory(category.id);
-                  }}
-                  title={currentUser?.role === 'MODERATOR' ? 'Access restricted for your role' : ''}
-                >
-                  🗑️ Delete
+                                     <FiEdit style={{ marginRight: '4px' }} /> Edit
                 </button>
               </div>
 
@@ -459,28 +438,38 @@ const Categories = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
-                  Icon
-                </label>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {iconOptions.map(icon => (
-                    <button
-                      key={icon}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, icon })}
-                      style={{
-                        fontSize: '24px',
-                        padding: '8px',
-                        borderRadius: '8px',
-                        border: formData.icon === icon ? '2px solid var(--primary-500)' : '1px solid var(--secondary-300)',
-                        backgroundColor: formData.icon === icon ? 'var(--primary-50)' : 'white',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {icon}
-                    </button>
-                  ))}
-                </div>
+                                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                    Icon
+                  </label>
+                  <div style={{ 
+                    maxHeight: '200px', 
+                    overflowY: 'auto', 
+                    border: '1px solid var(--secondary-300)', 
+                    borderRadius: '8px', 
+                    padding: '12px',
+                    backgroundColor: 'var(--background-50)'
+                  }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {iconOptions.map(icon => (
+                        <button
+                          key={icon}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, icon })}
+                          style={{
+                            fontSize: '24px',
+                            padding: '8px',
+                            borderRadius: '8px',
+                            border: formData.icon === icon ? '2px solid var(--primary-500)' : '1px solid var(--secondary-300)',
+                            backgroundColor: formData.icon === icon ? 'var(--primary-50)' : 'white',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {icon}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
               </div>
             </div>
 

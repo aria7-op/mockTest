@@ -37,11 +37,6 @@ const reportsReducer = (state, action) => {
           report.id === action.payload.id ? action.payload : report
         )
       };
-    case 'DELETE_REPORT':
-      return {
-        ...state,
-        reports: state.reports.filter(report => report.id !== action.payload)
-      };
     default:
       return state;
   }
@@ -191,18 +186,6 @@ export const ReportsProvider = ({ children }) => {
     }
   };
 
-  const deleteReport = async (reportId) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      dispatch({ type: 'DELETE_REPORT', payload: reportId });
-      toast.success('Report deleted successfully!');
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-      toast.error('Failed to delete report');
-      throw error;
-    }
-  };
-
   const exportReport = async (reportId, format = 'pdf') => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -245,7 +228,6 @@ export const ReportsProvider = ({ children }) => {
     generateReport,
     getReports,
     getReportById,
-    deleteReport,
     exportReport
   };
 

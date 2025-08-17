@@ -33,11 +33,6 @@ const taskReducer = (state, action) => {
           task.id === action.payload.id ? action.payload : task
         )
       };
-    case 'DELETE_TASK':
-      return {
-        ...state,
-        tasks: state.tasks.filter(task => task.id !== action.payload)
-      };
     case 'SET_FILTERS':
       return { ...state, filters: { ...state.filters, ...action.payload } };
     default:
@@ -84,16 +79,6 @@ export const TaskProvider = ({ children }) => {
       
       dispatch({ type: 'UPDATE_TASK', payload: updatedTask });
       return updatedTask;
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-      throw error;
-    }
-  };
-
-  const deleteTask = async (taskId) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      dispatch({ type: 'DELETE_TASK', payload: taskId });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
       throw error;
@@ -164,7 +149,6 @@ export const TaskProvider = ({ children }) => {
     ...state,
     createTask,
     updateTask,
-    deleteTask,
     getTasks,
     getTaskById,
     setFilters

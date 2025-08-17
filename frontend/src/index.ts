@@ -196,9 +196,9 @@ class SmartAttendanceServer {
       this.server.listen(config.port, () => {
         logger.info(`🎉 Smart Attendance System is running on port ${config.port}`);
         logger.info(`📊 Environment: ${config.nodeEnv}`);
-        logger.info(`🔗 API Base URL: http://localhost:${config.port}/api/v1`);
-        logger.info(`📚 API Documentation: http://localhost:${config.port}/api-docs`);
-        logger.info(`🔌 WebSocket: ws://localhost:${config.port}`);
+            logger.info(`🔗 API Base URL: https://localhost:${config.port}/api/v1`);
+    logger.info(`📚 API Documentation: https://localhost:${config.port}/api-docs`);
+        logger.info(`🔌 WebSocket: wss://31.97.70.79:${config.port}`);
       });
 
     } catch (error) {

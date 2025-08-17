@@ -4,7 +4,7 @@ import { storageUtils } from '../../utils/storage/storageUtils'
 
 // Create axios instance with base configuration
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || 'https://31.97.70.79:5050/api/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

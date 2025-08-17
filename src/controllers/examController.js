@@ -64,6 +64,39 @@ class ExamController {
         take: 10
       });
 
+      // Send notifications to students about upcoming exams if they have bookings
+      if (req.user && req.user.role === 'STUDENT') {
+        try {
+          // Get student's confirmed exam bookings
+          const studentBookings = await prisma.examBooking.findMany({
+            where: {
+              userId: req.user.id,
+              status: 'CONFIRMED',
+              scheduledAt: {
+                gte: new Date()
+              }
+            },
+            include: {
+              exam: {
+                include: {
+                  examCategory: true
+                }
+              }
+            }
+          });
+
+          if (studentBookings.length > 0) {
+            // Send upcoming exam notifications
+            if (global.notificationService) {
+              await global.notificationService.notifyUpcomingExams(req.user.id, studentBookings.map(b => b.exam));
+            }
+          }
+        } catch (notificationError) {
+          logger.warn('Failed to send upcoming exam notifications', notificationError);
+          // Don't fail the main request if notifications fail
+        }
+      }
+
       res.status(200).json({
         success: true,
         data: { exams: upcomingExams }
@@ -168,12 +201,20 @@ class ExamController {
         return res.status(400).json(result);
       }
 
-      // Get randomized questions for this attempt
-      const questions = await questionRandomizationService.getQuestionsForAttempt(
-        result.attempt.id,
+      // The exam service now returns questions with proper distribution
+      // No need to call questionRandomizationService again
+      const questions = result.questions || [];
+
+      logger.info('Exam started with questions', {
         examId,
-        userId
-      );
+        userId,
+        attemptId: result.attempt.id,
+        questionsCount: questions.length,
+        questionTypeDistribution: questions.reduce((acc, q) => {
+          acc[q.type] = (acc[q.type] || 0) + 1;
+          return acc;
+        }, {})
+      });
 
       // Emit WebSocket event for exam attempt started
       if (global.io) {
@@ -200,11 +241,11 @@ class ExamController {
             difficulty: q.difficulty,
             marks: q.marks,
             timeLimit: q.timeLimit,
-            options: q.options.map(opt => ({
+            options: q.options?.map(opt => ({
               id: opt.id,
               text: opt.text
-            })),
-            images: q.images
+            })) || [],
+            images: q.images || []
           })),
           duration: result.exam.duration,
           totalMarks: result.exam.totalMarks,
@@ -241,14 +282,15 @@ class ExamController {
         });
       }
 
-      const { questionId, selectedOptions, timeSpent } = value;
+      const { questionId, selectedOptions, timeSpent, essayAnswer } = value;
 
       const result = await examService.submitQuestionResponse(
         attemptId,
         questionId,
         selectedOptions,
         timeSpent,
-        userId
+        userId,
+        essayAnswer
       );
 
       if (!result.success) {
@@ -260,8 +302,7 @@ class ExamController {
         message: 'Response submitted successfully',
         data: {
           response: result.response,
-          isCorrect: result.isCorrect,
-          marksObtained: result.marksObtained
+          answerResult: result.answerResult
         }
       });
     } catch (error) {
@@ -294,7 +335,22 @@ class ExamController {
         });
       }
 
-      const result = await examService.completeExamAttempt(attemptId, userId, value);
+      // First, submit all responses to score them
+      if (value.responses && Array.isArray(value.responses)) {
+        for (const response of value.responses) {
+          await examService.submitQuestionResponse(
+            attemptId, 
+            response.questionId, 
+            response.selectedOptions || [], 
+            response.timeSpent || 0, 
+            userId,
+            response.essayAnswer
+          );
+        }
+      }
+
+      // Then complete the exam attempt
+      const result = await examService.completeExamAttempt(attemptId, userId);
 
       if (!result.success) {
         return res.status(400).json(result);
@@ -488,7 +544,7 @@ class ExamController {
 
       res.status(200).json({
         success: true,
-        data: stats
+        data: { stats }
       });
     } catch (error) {
       logger.error('Get user exam stats failed', error);
@@ -555,6 +611,36 @@ class ExamController {
   }
 
   /**
+   * Generate certificate for an exam attempt
+   */
+  async generateCertificate(req, res) {
+    try {
+      const { attemptId } = req.params;
+      const userId = req.user.id;
+
+      const result = await examService.generateCertificate(attemptId, userId);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Certificate generated successfully',
+        data: { certificate: result.certificate }
+      });
+    } catch (error) {
+      logger.error('Generate certificate failed', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to generate certificate'
+        }
+      });
+    }
+  }
+
+  /**
    * Download certificate
    */
   async downloadCertificate(req, res) {
@@ -568,14 +654,13 @@ class ExamController {
         return res.status(400).json(result);
       }
 
-      res.status(200).json({
-        success: true,
-        message: 'Certificate download initiated',
-        data: {
-          downloadUrl: result.downloadUrl,
-          expiresAt: result.expiresAt
-        }
-      });
+      // Set headers for PDF download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      res.setHeader('Content-Length', result.pdfBuffer.length);
+      
+      // Send the PDF buffer
+      res.status(200).send(result.pdfBuffer);
     } catch (error) {
       logger.error('Download certificate failed', error);
       res.status(500).json({
@@ -583,6 +668,28 @@ class ExamController {
         error: {
           message: 'Failed to download certificate'
         }
+      });
+    }
+  }
+
+  /**
+   * Auto-generate certificates for existing passed exams
+   */
+  async autoGenerateCertificates(req, res) {
+    try {
+      const userId = req.user.id;
+      const result = await examService.autoGenerateCertificates(userId);
+      
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: { certificates: result.certificates }
+      });
+    } catch (error) {
+      logger.error('Auto-generate certificates failed', error);
+      res.status(500).json({
+        success: false,
+        error: { message: 'Internal server error' }
       });
     }
   }

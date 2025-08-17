@@ -1,0 +1,107 @@
+{
+  "questions": [
+    {
+      "text": "Explain the concept of Object-Oriented Programming and its four main principles. Provide examples for each principle.",
+      "type": "ESSAY",
+      "difficulty": "MEDIUM",
+      "examCategoryId": "cmdyb4pji0000i2ovlel4fmju",
+      "marks": 10,
+      "timeLimit": 600,
+      "options": [
+        {
+          "text": "Object-Oriented Programming (OOP) is a programming paradigm based on the concept of objects, which can contain data and code. The four main principles are: 1) Encapsulation - bundling data and methods that operate on that data within a single unit (class). Example: A BankAccount class with private balance and public deposit/withdraw methods. 2) Inheritance - creating new classes that are built upon existing classes. Example: Animal class with Dog and Cat subclasses inheriting common properties. 3) Polymorphism - allowing objects to be treated as instances of their parent class while maintaining their own unique behavior. Example: Different animals making different sounds through the same method call. 4) Abstraction - hiding complex implementation details and showing only necessary features. Example: A car's steering wheel interface hiding the complex steering mechanism.",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "This question tests understanding of OOP fundamentals and ability to explain complex concepts with examples."
+    },
+    {
+      "text": "What is the difference between a stack and a queue data structure? Provide real-world examples of each.",
+      "type": "ESSAY",
+      "difficulty": "EASY",
+      "examCategoryId": "cmdyb4pji0000i2ovlel4fmju",
+      "marks": 8,
+      "timeLimit": 480,
+      "options": [
+        {
+          "text": "A stack is a LIFO (Last In, First Out) data structure where elements are added and removed from the same end. Real-world example: A stack of plates where you add and remove from the top. A queue is a FIFO (First In, First Out) data structure where elements are added at one end and removed from the other end. Real-world example: A line of people waiting for a movie ticket where the first person in line gets served first. Stacks are used in function call management, undo operations, and browser history. Queues are used in task scheduling, print spooling, and breadth-first search algorithms.",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "This question evaluates understanding of basic data structures and ability to provide practical examples."
+    },
+    {
+      "text": "Which of the following is NOT a valid JavaScript data type?",
+      "type": "MULTIPLE_CHOICE",
+      "difficulty": "EASY",
+      "examCategoryId": "cmdyb4pji0000i2ovlel4fmju",
+      "marks": 2,
+      "timeLimit": 60,
+      "options": [
+        {
+          "text": "string",
+          "isCorrect": false
+        },
+        {
+          "text": "number",
+          "isCorrect": false
+        },
+        {
+          "text": "boolean",
+          "isCorrect": false
+        },
+        {
+          "text": "character",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "JavaScript doesn't have a separate 'character' type - characters are represented as strings."
+    },
+    {
+      "text": "What is the time complexity of binary search?",
+      "type": "SHORT_ANSWER",
+      "difficulty": "MEDIUM",
+      "examCategoryId": "cmdyb4pji0000i2ovlel4fmju",
+      "marks": 3,
+      "timeLimit": 120,
+      "options": [
+        {
+          "text": "O(log n)",
+          "isCorrect": true
+        },
+        {
+          "text": "logarithmic time",
+          "isCorrect": true
+        },
+        {
+          "text": "log n",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "Binary search has logarithmic time complexity because it divides the search space in half with each iteration."
+    },
+    {
+      "text": "Fill in the blanks: A _____ is a collection of related data organized in _____ and _____.",
+      "type": "FILL_IN_THE_BLANK",
+      "difficulty": "EASY",
+      "examCategoryId": "cmdyb4pji0000i2ovlel4fmju",
+      "marks": 3,
+      "timeLimit": 90,
+      "options": [
+        {
+          "text": "database",
+          "isCorrect": true
+        },
+        {
+          "text": "rows",
+          "isCorrect": true
+        },
+        {
+          "text": "columns",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "A database is organized in rows and columns to store related data efficiently."
+    }
+  ]
+} 

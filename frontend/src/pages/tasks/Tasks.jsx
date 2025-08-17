@@ -61,12 +61,6 @@ const Tasks = () => {
                   >
                     Complete
                   </button>
-                  <button
-                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-                    onClick={() => deleteTask(task.id)}
-                  >
-                    Delete
-                  </button>
                 </div>
               </li>
             ))}

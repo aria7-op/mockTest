@@ -3,6 +3,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingAPI, examAPI, userAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 import BillModal from '../../components/BillModal';
+import { 
+  MdCalendarToday, 
+  MdCheckCircle, 
+  MdDelete, 
+  MdVisibility, 
+  MdHourglassEmpty, 
+  MdCancel, 
+  MdError,
+  MdSearch,
+  MdFilterList,
+  MdClear,
+  MdDateRange,
+  MdAssignment
+} from 'react-icons/md';
 
 const TestBookings = () => {
   const queryClient = useQueryClient();
@@ -12,6 +26,7 @@ const TestBookings = () => {
     startDate: '',
     endDate: ''
   });
+  const [searchQuery, setSearchQuery] = useState('');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showBill, setShowBill] = useState(false);
   const [currentBill, setCurrentBill] = useState(null);
@@ -19,6 +34,7 @@ const TestBookings = () => {
     userId: '',
     examId: '',
     scheduledAt: '',
+    attemptsAllowed: 1,
     notes: ''
   });
 
@@ -29,8 +45,8 @@ const TestBookings = () => {
     error, 
     refetch 
   } = useQuery({
-    queryKey: ['admin-bookings', filters],
-    queryFn: () => bookingAPI.getAllBookings(filters),
+    queryKey: ['admin-bookings', filters, searchQuery],
+    queryFn: () => bookingAPI.getAllBookings({ ...filters, search: searchQuery }),
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
@@ -53,7 +69,7 @@ const TestBookings = () => {
       queryClient.invalidateQueries(['admin-bookings']);
       toast.success('Test scheduled successfully!');
       setShowScheduleModal(false);
-      setScheduleData({ userId: '', examId: '', scheduledAt: '', notes: '' });
+      setScheduleData({ userId: '', examId: '', scheduledAt: '', attemptsAllowed: 1, notes: '' });
       
       // Show bill if available
       if (response.data?.data?.bill) {
@@ -62,8 +78,8 @@ const TestBookings = () => {
       }
     },
     onError: (error) => {
-      console.error('❌ Booking creation error:', error);
-      console.error('❌ Error response:', error.response?.data);
+      console.error('Booking creation error:', error);
+      console.error('Error response:', error.response?.data);
       toast.error(error.response?.data?.message || 'Failed to schedule test');
     }
   });
@@ -72,6 +88,22 @@ const TestBookings = () => {
   const pagination = bookingsData?.data?.data?.pagination;
   const users = usersData?.data?.data?.users || [];
   const exams = examsData?.data?.data?.exams || [];
+
+  // Client-side filtering for additional search functionality
+  const filteredBookings = bookings.filter((booking) => {
+    if (!searchQuery) return true;
+    
+    const searchLower = searchQuery.toLowerCase();
+    const studentName = `${booking.user?.firstName || ''} ${booking.user?.lastName || ''}`.toLowerCase();
+    const studentEmail = (booking.user?.email || '').toLowerCase();
+    const testTitle = (booking.exam?.title || '').toLowerCase();
+    const categoryName = (booking.exam?.examCategory?.name || '').toLowerCase();
+    
+    return studentName.includes(searchLower) || 
+           studentEmail.includes(searchLower) || 
+           testTitle.includes(searchLower) || 
+           categoryName.includes(searchLower);
+  });
 
 
 
@@ -122,13 +154,24 @@ const TestBookings = () => {
       ...(scheduleData.notes && { notes: scheduleData.notes })
     };
 
-    console.log('🔍 Creating admin booking with payload:', bookingPayload);
+    console.log('Creating admin booking with payload:', bookingPayload);
     createBookingMutation.mutate(bookingPayload);
   };
 
   // Handle filter changes
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Handle search query change
+  const handleSearchChange = (value) => {
+    setSearchQuery(value);
+  };
+
+  // Clear all filters and search
+  const clearAllFilters = () => {
+    setFilters({ status: '', examCategoryId: '', startDate: '', endDate: '' });
+    setSearchQuery('');
   };
 
   // Format date for display
@@ -180,18 +223,208 @@ const TestBookings = () => {
           <h2 className="data-table-title">Test Bookings</h2>
           <div className="data-table-actions">
             <button className="btn btn-primary" onClick={handleScheduleTest}>
-              📅 Schedule Test
+              <MdCalendarToday style={{ marginRight: '6px', fontSize: '16px' }} />
+              Schedule Test
             </button>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="filters-container" style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        {/* Search Bar Section */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--primary-50) 0%, var(--secondary-50) 100%)',
+          padding: '20px',
+          borderRadius: '12px',
+          border: '2px solid var(--primary-100)',
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+          marginBottom: '20px'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            marginBottom: '12px',
+            color: 'var(--secondary-800)'
+          }}>
+            <MdSearch style={{ 
+              fontSize: '20px', 
+              color: 'var(--primary-600)', 
+              marginRight: '8px' 
+            }} />
+            <h3 style={{ 
+              fontSize: '16px', 
+              fontWeight: '600',
+              margin: 0
+            }}>
+              Search Test Bookings
+            </h3>
+          </div>
+          
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Search by student name, email, test title, or category..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 45px 12px 16px',
+                border: '2px solid var(--secondary-200)',
+                borderRadius: '10px',
+                fontSize: '14px',
+                backgroundColor: 'white',
+                color: 'var(--secondary-700)',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--primary-500)';
+                e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--secondary-200)';
+                e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+              }}
+            />
+            <div style={{
+              position: 'absolute',
+              right: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              {searchQuery && (
+                <button
+                  onClick={() => handleSearchChange('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--secondary-500)',
+                    cursor: 'pointer',
+                    padding: '2px',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.color = 'var(--secondary-700)';
+                    e.target.style.backgroundColor = 'var(--secondary-100)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.color = 'var(--secondary-500)';
+                    e.target.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <MdClear style={{ fontSize: '18px' }} />
+                </button>
+              )}
+              <MdSearch style={{ 
+                fontSize: '18px', 
+                color: 'var(--secondary-400)' 
+              }} />
+            </div>
+          </div>
+          
+          {/* Search Results Info */}
+          {searchQuery && (
+            <div style={{ 
+              marginTop: '12px', 
+              padding: '8px 12px',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              borderRadius: '6px',
+              border: '1px solid var(--primary-200)',
+              fontSize: '13px',
+              color: 'var(--primary-700)',
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              <MdSearch style={{ marginRight: '6px', fontSize: '14px' }} />
+              Searching for: <strong style={{ marginLeft: '4px' }}>"{searchQuery}"</strong>
+            </div>
+          )}
+        </div>
+
+        {/* Beautiful Filters Section */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--primary-50) 0%, var(--secondary-50) 100%)',
+          padding: '24px',
+          borderRadius: '16px',
+          border: '2px solid var(--primary-200)',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
+          marginBottom: '24px'
+        }}>
+          {/* Filter Header */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            marginBottom: '20px',
+            padding: '12px 16px',
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+            borderRadius: '10px',
+            border: '1px solid var(--primary-100)'
+          }}>
+            <MdFilterList style={{ 
+              fontSize: '20px', 
+              color: 'var(--primary-600)', 
+              marginRight: '10px' 
+            }} />
+            <h3 style={{ 
+              fontSize: '18px', 
+              fontWeight: '700',
+              color: 'var(--secondary-800)',
+              margin: 0
+            }}>
+              Filter Bookings
+            </h3>
+          </div>
+
+          {/* Filter Controls */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+            gap: '20px',
+            alignItems: 'end'
+          }}>
+            {/* Status Filter */}
+            <div>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                marginBottom: '8px', 
+                fontWeight: '600',
+                color: 'var(--secondary-700)',
+                fontSize: '14px'
+              }}>
+                <MdAssignment style={{ 
+                  marginRight: '6px', 
+                  fontSize: '16px', 
+                  color: 'var(--primary-600)' 
+                }} />
+                Status
+              </label>
           <select 
             value={filters.status} 
             onChange={(e) => handleFilterChange('status', e.target.value)}
-            className="form-select"
-            style={{ minWidth: '150px' }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: '2px solid var(--secondary-200)',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  backgroundColor: 'white',
+                  color: 'var(--secondary-700)',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'var(--primary-500)';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'var(--secondary-200)';
+                  e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
           >
             <option value="">All Status</option>
             <option value="PENDING">Pending</option>
@@ -200,29 +433,156 @@ const TestBookings = () => {
             <option value="COMPLETED">Completed</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
+            </div>
 
+            {/* Start Date Filter */}
+            <div>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                marginBottom: '8px', 
+                fontWeight: '600',
+                color: 'var(--secondary-700)',
+                fontSize: '14px'
+              }}>
+                <MdDateRange style={{ 
+                  marginRight: '6px', 
+                  fontSize: '16px', 
+                  color: 'var(--primary-600)' 
+                }} />
+                Start Date
+              </label>
           <input
             type="date"
             value={filters.startDate}
             onChange={(e) => handleFilterChange('startDate', e.target.value)}
-            className="form-input"
-            placeholder="Start Date"
-          />
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: '2px solid var(--secondary-200)',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  backgroundColor: 'white',
+                  color: 'var(--secondary-700)',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'var(--primary-500)';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'var(--secondary-200)';
+                  e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+              />
+            </div>
 
+            {/* End Date Filter */}
+            <div>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                marginBottom: '8px', 
+                fontWeight: '600',
+                color: 'var(--secondary-700)',
+                fontSize: '14px'
+              }}>
+                <MdDateRange style={{ 
+                  marginRight: '6px', 
+                  fontSize: '16px', 
+                  color: 'var(--primary-600)' 
+                }} />
+                End Date
+              </label>
           <input
             type="date"
             value={filters.endDate}
             onChange={(e) => handleFilterChange('endDate', e.target.value)}
-            className="form-input"
-            placeholder="End Date"
-          />
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: '2px solid var(--secondary-200)',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  backgroundColor: 'white',
+                  color: 'var(--secondary-700)',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'var(--primary-500)';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'var(--secondary-200)';
+                  e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+              />
+            </div>
 
+            {/* Clear Filters Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button 
-            className="btn btn-secondary" 
-            onClick={() => setFilters({ status: '', examCategoryId: '', startDate: '', endDate: '' })}
-          >
+            onClick={clearAllFilters}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '12px 20px',
+                  border: '2px solid var(--secondary-300)',
+                  borderRadius: '10px',
+                  backgroundColor: 'white',
+                  color: 'var(--secondary-700)',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.borderColor = 'var(--secondary-400)';
+                  e.target.style.backgroundColor = 'var(--secondary-50)';
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.borderColor = 'var(--secondary-300)';
+                  e.target.style.backgroundColor = 'white';
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }}
+              >
+                <MdClear style={{ marginRight: '6px', fontSize: '16px' }} />
             Clear Filters
           </button>
+            </div>
+          </div>
+
+          {/* Active Filters Indicator */}
+          {(filters.status || filters.startDate || filters.endDate || searchQuery) && (
+            <div style={{ 
+              marginTop: '16px', 
+              padding: '12px 16px',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              borderRadius: '8px',
+              border: '1px solid var(--primary-200)'
+            }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                fontSize: '14px',
+                color: 'var(--primary-700)',
+                fontWeight: '500'
+              }}>
+                <MdFilterList style={{ marginRight: '6px', fontSize: '16px' }} />
+                Active Filters: 
+                {searchQuery && <span style={{ marginLeft: '8px', padding: '2px 8px', backgroundColor: 'var(--primary-100)', borderRadius: '12px' }}>Search: "{searchQuery}"</span>}
+                {filters.status && <span style={{ marginLeft: '8px', padding: '2px 8px', backgroundColor: 'var(--primary-100)', borderRadius: '12px' }}>Status: {filters.status}</span>}
+                {filters.startDate && <span style={{ marginLeft: '8px', padding: '2px 8px', backgroundColor: 'var(--primary-100)', borderRadius: '12px' }}>From: {filters.startDate}</span>}
+                {filters.endDate && <span style={{ marginLeft: '8px', padding: '2px 8px', backgroundColor: 'var(--primary-100)', borderRadius: '12px' }}>To: {filters.endDate}</span>}
+              </div>
+            </div>
+          )}
         </div>
 
         {isLoading ? (
@@ -240,20 +600,21 @@ const TestBookings = () => {
                   <th>Category</th>
                   <th>Scheduled Date</th>
                   <th>Scheduled Time</th>
+                  <th>Attempts</th>
                   <th>Status</th>
                   <th>Payment</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {bookings.length === 0 ? (
+                {filteredBookings.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: 'center', padding: '20px' }}>
-                      No bookings found
+                    <td colSpan="9" style={{ textAlign: 'center', padding: '20px' }}>
+                      {searchQuery ? `No bookings found matching "${searchQuery}"` : 'No bookings found'}
                     </td>
                   </tr>
                 ) : (
-                  bookings.map((booking) => (
+                  filteredBookings.map((booking) => (
                     <tr key={booking.id}>
                       <td>
                         <div style={{ fontWeight: '600', color: 'var(--secondary-900)' }}>
@@ -280,12 +641,28 @@ const TestBookings = () => {
                         {booking.scheduledAt ? formatTime(booking.scheduledAt) : '-'}
                       </td>
                       <td>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontWeight: '600', color: '#059669' }}>
+                            {booking.attemptsUsed || 0}/{booking.attemptsAllowed || 1}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            {booking.attemptsUsed >= (booking.attemptsAllowed || 1) ? 'No attempts left' : 'Attempts remaining'}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
                         <span className={`badge ${getStatusBadgeClass(booking.status)}`}>
-                          {booking.status === 'COMPLETED' ? '✅ COMPLETED' :
-                           booking.status === 'CONFIRMED' ? '✅ CONFIRMED' :
-                           booking.status === 'PENDING' ? '⏳ PENDING' :
-                           booking.status === 'CANCELLED' ? '❌ CANCELLED' :
-                           booking.status === 'SCHEDULED' ? '📅 SCHEDULED' : booking.status}
+                          {booking.status === 'COMPLETED' ? (
+                            <><MdCheckCircle style={{ marginRight: '4px', fontSize: '14px' }} />COMPLETED</>
+                          ) : booking.status === 'CONFIRMED' ? (
+                            <><MdCheckCircle style={{ marginRight: '4px', fontSize: '14px' }} />CONFIRMED</>
+                          ) : booking.status === 'PENDING' ? (
+                            <><MdHourglassEmpty style={{ marginRight: '4px', fontSize: '14px' }} />PENDING</>
+                          ) : booking.status === 'CANCELLED' ? (
+                            <><MdCancel style={{ marginRight: '4px', fontSize: '14px' }} />CANCELLED</>
+                          ) : booking.status === 'SCHEDULED' ? (
+                            <><MdCalendarToday style={{ marginRight: '4px', fontSize: '14px' }} />SCHEDULED</>
+                          ) : booking.status}
                         </span>
                       </td>
                       <td>
@@ -304,14 +681,16 @@ const TestBookings = () => {
                                 style={{ padding: '4px 8px', fontSize: '12px' }}
                                 onClick={() => handleStatusUpdate(booking.id, 'CONFIRMED')}
                               >
-                                ✅ Confirm
+                                <MdCheckCircle style={{ marginRight: '4px', fontSize: '12px' }} />
+                                Confirm
                               </button>
                               <button 
                                 className="btn btn-danger" 
                                 style={{ padding: '4px 8px', fontSize: '12px' }}
                                 onClick={() => handleCancelBooking(booking.id)}
                               >
-                                🗑️ Cancel
+                                <MdDelete style={{ marginRight: '4px', fontSize: '12px' }} />
+                                Cancel
                               </button>
                             </>
                           )}
@@ -321,14 +700,16 @@ const TestBookings = () => {
                               style={{ padding: '4px 8px', fontSize: '12px' }}
                               onClick={() => handleStatusUpdate(booking.id, 'SCHEDULED')}
                             >
-                              📅 Schedule
+                              <MdCalendarToday style={{ marginRight: '4px', fontSize: '12px' }} />
+                              Schedule
                             </button>
                           )}
                           <button 
                             className="btn btn-secondary" 
                             style={{ padding: '4px 8px', fontSize: '12px' }}
                           >
-                            👁️ View
+                            <MdVisibility style={{ marginRight: '4px', fontSize: '12px' }} />
+                            View
                           </button>
                         </div>
                       </td>
@@ -459,6 +840,32 @@ const TestBookings = () => {
                   min={new Date().toISOString().slice(0, 16)}
                   required
                 />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div className="form-group">
+                <label className="form-label">Number of Attempts Allowed *</label>
+                <select
+                  className="form-select"
+                  value={scheduleData.attemptsAllowed}
+                  onChange={(e) => setScheduleData({ ...scheduleData, attemptsAllowed: parseInt(e.target.value) })}
+                  required
+                >
+                  <option value={1}>1 Attempt</option>
+                  <option value={2}>2 Attempts</option>
+                  <option value={3}>3 Attempts</option>
+                  <option value={4}>4 Attempts</option>
+                  <option value={5}>5 Attempts</option>
+                  <option value={6}>6 Attempts</option>
+                  <option value={7}>7 Attempts</option>
+                  <option value={8}>8 Attempts</option>
+                  <option value={9}>9 Attempts</option>
+                  <option value={10}>10 Attempts</option>
+                </select>
+                <small style={{ color: '#64748b', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                  The user will be able to take this exam up to {scheduleData.attemptsAllowed} time{scheduleData.attemptsAllowed > 1 ? 's' : ''}
+                </small>
               </div>
             </div>
 

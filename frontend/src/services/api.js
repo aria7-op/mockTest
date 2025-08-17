@@ -1,9 +1,10 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../config/api.config';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -29,6 +30,36 @@ api.interceptors.request.use(
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => {
+    // For blob responses (like PDFs), check if it's actually an error response
+    if (response.config.responseType === 'blob') {
+      // Check if the blob is actually a JSON error response
+      const reader = new FileReader();
+      return new Promise((resolve, reject) => {
+        reader.onload = function() {
+          try {
+            const text = reader.result;
+            // Try to parse as JSON - if it works, it's an error response
+            const json = JSON.parse(text);
+            if (json.success === false) {
+              // This is an error response, reject it
+              reject({
+                response: {
+                  status: 400,
+                  data: json
+                }
+              });
+            } else {
+              // Valid response, return the blob
+              resolve(response.data);
+            }
+          } catch (e) {
+            // Not JSON, so it's a valid PDF blob
+            resolve(response.data);
+          }
+        };
+        reader.readAsText(response.data);
+      });
+    }
     return response;
   },
   (error) => {
@@ -76,6 +107,12 @@ export const userAPI = {
   getUserStats: (userId) => api.get(`/users/${userId}/stats`),
   getUserAttempts: (userId) => api.get(`/users/${userId}/attempts`),
   getUserPayments: (userId) => api.get(`/users/${userId}/payments`),
+  getUserExamHistory: (params) => api.get('/exams/history', { params }),
+  getUserExamStats: () => api.get('/exams/stats'),
+  getUserCertificates: (params) => api.get('/exams/certificates', { params }),
+  generateCertificate: (attemptId) => api.post(`/exams/attempts/${attemptId}/generate-certificate`),
+  downloadCertificate: (certificateId) => api.get(`/exams/certificates/${certificateId}/download`, { responseType: 'blob' }),
+  autoGenerateCertificates: () => api.post('/exams/certificates/auto-generate'),
 };
 
 // Exam Categories API
@@ -129,21 +166,28 @@ export const examAPI = {
   publishExam: (examId) => api.put(`/admin/exams/${examId}/publish`),
   unpublishExam: (examId) => api.put(`/admin/exams/${examId}/unpublish`),
   duplicateExam: (examId) => api.post(`/admin/exams/${examId}/duplicate`),
+  getUserExamHistory: (params) => api.get('/exams/history', { params }),
+  getUserExamStats: () => api.get('/exams/stats'),
+  getUserCertificates: (params) => api.get('/exams/certificates', { params }),
+  generateCertificate: (attemptId) => api.post(`/exams/attempts/${attemptId}/generate-certificate`),
+  downloadCertificate: (certificateId) => api.get(`/exams/certificates/${certificateId}/download`, { responseType: 'blob' }),
+  autoGenerateCertificates: () => api.post('/exams/certificates/auto-generate'),
+  getExamCategories: () => api.get('/exam-categories'),
 };
 
 // Exam Attempts API
 export const attemptAPI = {
-  startAttempt: (examId, bookingId) => api.post('/attempts/start', { examId, bookingId }),
+  startAttempt: (examId, bookingId) => api.post(`/exams/${examId}/start`, { bookingId }),
   submitAnswer: (attemptId, questionId, selectedOptions, timeSpent) =>
-    api.post(`/attempts/${attemptId}/responses`, { questionId, selectedOptions, timeSpent }),
-  submitAttempt: (attemptId, answers) => api.post(`/attempts/${attemptId}/submit`, { answers }),
-  completeAttempt: (attemptId) => api.post(`/attempts/${attemptId}/complete`),
-  getAttemptHistory: (params) => api.get('/attempts/history', { params }),
-  getAttemptById: (attemptId) => api.get(`/attempts/${attemptId}`),
-  getAttemptResponses: (attemptId) => api.get(`/attempts/${attemptId}/responses`),
-  getAttemptAnalytics: (attemptId) => api.get(`/attempts/${attemptId}/analytics`),
-  pauseAttempt: (attemptId) => api.put(`/attempts/${attemptId}/pause`),
-  resumeAttempt: (attemptId) => api.put(`/attempts/${attemptId}/resume`),
+    api.post(`/exams/attempts/${attemptId}/responses`, { questionId, selectedOptions, timeSpent }),
+  submitAttempt: (attemptId, responses) => api.post(`/exams/attempts/${attemptId}/complete`, { responses }),
+  completeAttempt: (attemptId) => api.post(`/exams/attempts/${attemptId}/complete`),
+  getAttemptHistory: (params) => api.get('/exams/attempts/history', { params }),
+  getAttemptById: (attemptId) => api.get(`/exams/attempts/${attemptId}`),
+  getAttemptResponses: (attemptId) => api.get(`/exams/attempts/${attemptId}/responses`),
+  getAttemptAnalytics: (attemptId) => api.get(`/exams/attempts/${attemptId}/analytics`),
+  pauseAttempt: (attemptId) => api.put(`/exams/attempts/${attemptId}/pause`),
+  resumeAttempt: (attemptId) => api.put(`/exams/attempts/${attemptId}/resume`),
 };
 
 // Bookings API
@@ -204,8 +248,8 @@ export const analyticsAPI = {
 export const adminAPI = {
   // Users
   getAllUsers: (params) => api.get('/admin/users', { params }),
-  createUser: (userData) => api.post('/admin/users', userData),
-  updateUser: (userId, userData) => api.put(`/admin/users/${userId}`, userData),
+  createUser: (userData) => api.post('/auth/register', userData),
+  updateUser: (userId, userData) => api.put(`/users/${userId}`, userData),
   deleteUser: (userId) => api.delete(`/admin/users/${userId}`),
   getUserDetails: (userId) => api.get(`/admin/users/${userId}`),
   bulkCreateUsers: (users) => api.post('/admin/users/bulk', { users }),
@@ -226,7 +270,16 @@ export const adminAPI = {
 
   // Questions
   getAllQuestions: (params) => api.get('/admin/questions', { params }),
-  createQuestion: (questionData) => api.post('/admin/questions', questionData),
+  createQuestion: (questionData) => {
+    // If questionData is FormData (for file uploads), send it directly
+    if (questionData instanceof FormData) {
+      return api.post('/admin/questions', questionData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    // Otherwise, send as JSON
+    return api.post('/admin/questions', questionData);
+  },
   updateQuestion: (questionId, questionData) => api.put(`/admin/questions/${questionId}`, questionData),
   deleteQuestion: (questionId) => api.delete(`/admin/questions/${questionId}`),
   getQuestionDetails: (questionId) => api.get(`/admin/questions/${questionId}`),
@@ -282,6 +335,14 @@ export const adminAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
+
+  // Analytics & Reports
+  getDashboardStats: () => api.get('/admin/dashboard/stats'),
+  getUserAnalytics: () => api.get('/admin/users/analytics'),
+  getExamAnalytics: () => api.get('/admin/exams/analytics'),
+  getQuestionAnalytics: () => api.get('/admin/questions/analytics'),
+  getSystemAnalytics: () => api.get('/admin/system/analytics'),
+  exportData: (exportData) => api.post('/admin/system/export', exportData),
 
   // Settings
   getSystemSettings: () => api.get('/admin/settings'),

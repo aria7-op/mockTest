@@ -10,10 +10,10 @@ class DatabaseService {
     async connect() {
         try {
             this.pool = new Pool({
-                user: 'mock',
+                user: 'exam_user',
                 host: 'localhost',
-                database: 'mock',
-                password: 'mock',
+                database: 'exam_system',
+                password: 'YourSecurePassword123!',
                 port: 5432,
                 max: 20,
                 idleTimeoutMillis: 30000,

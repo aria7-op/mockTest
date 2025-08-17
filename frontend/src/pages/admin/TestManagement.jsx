@@ -120,12 +120,6 @@ const TestManagement = () => {
     }
   };
 
-  const handleDeleteTest = (testId) => {
-    if (window.confirm('Are you sure you want to delete this test?')) {
-      setTests(tests.filter(test => test.id !== testId));
-    }
-  };
-
   return (
     <div className="fade-in">
       {/* Header Actions */}
@@ -287,13 +281,6 @@ const TestManagement = () => {
                         style={{ padding: '0.5rem', fontSize: '0.875rem' }}
                       >
                         Edit
-                      </button>
-                      <button 
-                        className="btn btn-danger"
-                        style={{ padding: '0.5rem', fontSize: '0.875rem' }}
-                        onClick={() => handleDeleteTest(test.id)}
-                      >
-                        Delete
                       </button>
                     </div>
                   </td>

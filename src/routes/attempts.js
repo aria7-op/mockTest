@@ -100,13 +100,55 @@ router.post('/:attemptId/complete', auth, async (req, res) => {
   try {
     const { attemptId } = req.params;
     const userId = req.user.id;
+    const { responses } = req.body;
 
-    const result = await examService.completeExamAttempt(attemptId, userId);
-    res.status(200).json({
-      success: true,
-      message: 'Exam completed successfully',
-      data: result
+    console.log('📝 Route handler - Received request:', {
+      attemptId,
+      userId,
+      responsesCount: responses ? responses.length : 0,
+      responses: responses
     });
+
+    const result = await examService.completeExamAttempt(attemptId, userId, responses);
+    
+    if (result.success) {
+      res.status(200).json({
+        success: true,
+        message: 'Exam completed successfully',
+        data: {
+          score: result.results.score,
+          maxMarks: result.results.totalQuestions,
+          percentage: result.results.percentage,
+          isPassed: result.results.isPassed,
+          totalQuestions: result.results.totalQuestions,
+          correctAnswers: result.results.correctAnswers,
+          wrongAnswers: result.results.wrongAnswers,
+          unanswered: result.results.unanswered,
+          totalTimeSpent: result.results.totalTimeSpent,
+          averageTimePerQuestion: result.results.averageTimePerQuestion,
+          timeEfficiency: result.results.timeEfficiency,
+          accuracy: result.results.accuracy,
+          speedScore: result.results.speedScore,
+          consistencyScore: result.results.consistencyScore,
+          difficultyScore: result.results.difficultyScore,
+          grade: result.results.grade,
+          easyCorrect: result.results.easyCorrect,
+          easyTotal: result.results.easyTotal,
+          mediumCorrect: result.results.mediumCorrect,
+          mediumTotal: result.results.mediumTotal,
+          hardCorrect: result.results.hardCorrect,
+          hardTotal: result.results.hardTotal,
+          attempt: result.attempt,
+          examScore: result.examScore,
+          certificate: result.certificate
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.message
+      });
+    }
   } catch (error) {
     res.status(400).json({
       success: false,

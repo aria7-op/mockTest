@@ -89,7 +89,7 @@ export const config: AppConfig = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '5000', 10),
   apiVersion: process.env.API_VERSION || 'v1',
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  corsOrigin: process.env.CORS_ORIGIN || 'https://localhost:3000',
   
   database: {
     host: process.env.DB_HOST || 'localhost',

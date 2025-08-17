@@ -1,8 +1,10 @@
 const express = require('express');
 const adminController = require('../controllers/adminController');
 const { auth, adminOnly, superAdminOnly, adminOrModerator, adminOrSuperAdmin } = require('../middleware/auth');
+const FileUploadService = require('../services/fileUploadService');
 
 const router = express.Router();
+const fileUploadService = new FileUploadService();
 
 // All routes require admin or moderator authentication
 router.use(auth, adminOrModerator);
@@ -15,11 +17,11 @@ router.get('/dashboard/stats', adminController.getDashboardStats);
 // ========================================
 router.post('/users', adminController.createUser);
 router.get('/users', adminController.getAllUsers);
+router.get('/users/analytics', adminController.getUserAnalytics);
 router.get('/users/:userId', adminController.getUserDetails);
 router.put('/users/:userId', adminController.updateUser);
 router.patch('/users/:userId/status', adminOrSuperAdmin, adminController.toggleUserStatus);
 router.post('/users/bulk-import', adminOrSuperAdmin, adminController.bulkImportUsers);
-router.get('/users/analytics', adminController.getUserAnalytics);
 
 // ========================================
 // EXAM CATEGORY MANAGEMENT
@@ -32,10 +34,11 @@ router.delete('/exam-categories/:categoryId', adminOrSuperAdmin, adminController
 // ========================================
 // QUESTION MANAGEMENT
 // ========================================
-router.post('/questions', adminController.createQuestion);
+router.post('/questions', fileUploadService.getImageUploadMiddleware().array('images', 5), adminController.createQuestion);
 router.get('/questions', adminController.getAllQuestions);
 router.put('/questions/:questionId', adminController.updateQuestion);
 router.delete('/questions/:questionId', adminOrSuperAdmin, adminController.deleteQuestion);
+router.post('/questions/bulk', adminController.bulkCreateQuestions);
 router.post('/questions/bulk-import', adminController.bulkImportQuestions);
 router.get('/questions/analytics', adminController.getQuestionAnalytics);
 
@@ -44,10 +47,17 @@ router.get('/questions/analytics', adminController.getQuestionAnalytics);
 // ========================================
 router.post('/exams', adminOrSuperAdmin, adminController.createExam);
 router.get('/exams', adminController.getAllExams);
+router.get('/exams/:examId', adminOrSuperAdmin, adminController.getExamDetails);
 router.put('/exams/:examId', adminOrSuperAdmin, adminController.updateExam);
 router.delete('/exams/:examId', adminOrSuperAdmin, adminController.deleteExam);
 router.patch('/exams/:examId/approve', adminOrSuperAdmin, adminController.approveExam);
+router.post('/exams/:examId/questions', adminOrSuperAdmin, adminController.addQuestionToExam);
 router.get('/exams/analytics', adminController.getExamAnalytics);
+
+// ========================================
+// ESSAY TESTING
+// ========================================
+router.post('/test-essay', adminController.testEssayScoring);
 
 // ========================================
 // SYSTEM ADMINISTRATION

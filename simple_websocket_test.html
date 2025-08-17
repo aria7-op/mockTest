@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    <button onclick="testNotification()">Send Test Notification</button>
+
+    <script>
+        const socket = io('http://localhost:5000', {
+            withCredentials: true,
+            transports: ['websocket', 'polling']
+        });
+
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+
+        function addMessage(message) {
+            const div = document.createElement('div');
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            messagesDiv.appendChild(div);
+        }
+
+        socket.on('connect', () => {
+            statusDiv.innerHTML = '✅ Connected! Socket ID: ' + socket.id;
+            addMessage('🔌 WebSocket connected successfully!');
+            
+            // Join user room (using admin user ID)
+            socket.emit('join-user', { userId: 'cmdw3a9vx0001i2jis7rwwyai' });
+            addMessage('📤 Joined user room');
+        });
+
+        socket.on('connect_error', (error) => {
+            statusDiv.innerHTML = '❌ Connection failed: ' + error.message;
+            addMessage('❌ Connection error: ' + error.message);
+        });
+
+        socket.on('disconnect', (reason) => {
+            statusDiv.innerHTML = '🔌 Disconnected: ' + reason;
+            addMessage('🔌 Disconnected: ' + reason);
+        });
+
+        socket.on('notification', (notification) => {
+            addMessage('🔔 NOTIFICATION RECEIVED: ' + JSON.stringify(notification));
+            statusDiv.innerHTML = '✅ Connected - Last notification: ' + notification.title;
+        });
+
+        function testNotification() {
+            addMessage('📤 Requesting test notification...');
+            // This would normally be done via API call, but for testing we can simulate
+            fetch('http://localhost:5000/api/v1/notifications/test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer YOUR_TOKEN_HERE'
+                },
+                body: JSON.stringify({
+                    title: '🧪 HTML Test Notification',
+                    message: 'Testing WebSocket from HTML page',
+                    type: 'SYSTEM_ALERT',
+                    priority: 'normal'
+                })
+            }).then(response => response.json())
+              .then(data => addMessage('📨 API Response: ' + JSON.stringify(data)))
+              .catch(error => addMessage('❌ API Error: ' + error.message));
+        }
+    </script>
+</body>
+</html>

@@ -1,26 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../../contexts/AuthContext';
 import { examAPI, categoryAPI } from '../../services/api';
+import { FiTarget, FiAlertTriangle, FiFileText, FiCalendar } from 'react-icons/fi';
 
 const StudentTests = () => {
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
 
   // Fetch available exams
-  const {
-    data: examsData,
-    isLoading: examsLoading,
-    error: examsError
-  } = useQuery({
-    queryKey: ['available-exams'],
-    queryFn: () => {
-      console.log('🔍 Fetching available exams...');
-      return examAPI.getAvailableExams();
-    },
-    refetchInterval: 60000, // Refetch every minute
-  });
+  // const {
+  //   data: examsData,
+  //   isLoading: examsLoading,
+  //   error: examsError
+  // } = useQuery({
+  //   queryKey: ['available-exams'],
+  //   queryFn: () => {
+  //     console.log('🔍 Fetching available exams...');
+  //     return examAPI.getAvailableExams();
+  //   },
+  //   refetchInterval: 60000, // Refetch every minute
+  // });
 
-  console.log('📊 StudentTests Component Debug:', {
+  // Mock data for testing
+  const examsData = { data: { exams: [] } };
+  const examsLoading = false;
+  const examsError = null;
+
+  console.log('StudentTests Component Debug:', {
     examsData,
     examsLoading,
     examsError,
@@ -39,7 +46,7 @@ const StudentTests = () => {
     },
   });
 
-  console.log('📊 Categories Debug:', {
+  console.log('Categories Debug:', {
     categoriesData,
     categoriesLoading,
     categories: categoriesData?.data?.data || []
@@ -193,10 +200,71 @@ const StudentTests = () => {
                   </div>
                 </div>
 
+                {/* Attempts Information */}
+                {/* {test.attemptsInfo && (
+                  <div style={{ 
+                    marginBottom: '16px',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    backgroundColor: test.attemptsInfo.canTakeExam ? 'var(--success-50)' : 'var(--danger-50)',
+                    border: `1px solid ${test.attemptsInfo.canTakeExam ? 'var(--success-200)' : 'var(--danger-200)'}`
+                  }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between',
+                      marginBottom: '8px'
+                    }}>
+                      <span style={{ 
+                        fontSize: '14px', 
+                        fontWeight: '500',
+                        color: test.attemptsInfo.canTakeExam ? 'var(--success-700)' : 'var(--danger-700)'
+                      }}>
+                        🎯 Attempts: {test.attemptsInfo.attemptsUsed}/{test.attemptsInfo.attemptsAllowed}
+                      </span>
+                      {test.attemptsInfo.hasBooking && (
+                        <span style={{ 
+                          fontSize: '12px', 
+                          color: 'var(--secondary-500)',
+                          backgroundColor: 'var(--secondary-100)',
+                          padding: '2px 8px',
+                          borderRadius: '12px'
+                        }}>
+                          Booked
+                        </span>
+                      )}
+                    </div>
+                    {!test.attemptsInfo.canTakeExam && (
+                      <div style={{ 
+                        fontSize: '12px', 
+                        color: 'var(--danger-600)',
+                        fontStyle: 'italic'
+                      }}>
+                        ⚠️ No more attempts allowed
+                      </div>
+                    )}
+                  </div>
+                )} */}
+
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn btn-primary" style={{ flex: 1 }}>
-                    📝 Start Test
-                  </button>
+                  {/* {test.attemptsInfo && !test.attemptsInfo.canTakeExam ? (
+                    <button 
+                      className="btn btn-danger" 
+                      style={{ flex: 1 }}
+                      disabled
+                      title="No more attempts allowed"
+                    >
+                      ❌ Attempts Exceeded
+                    </button>
+                  ) : ( */}
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ flex: 1 }}
+                      onClick={() => window.location.href = `/exam/${test.id}`}
+                    >
+                      📝 Start Test
+                    </button>
+                  {/* )} */}
                   <button className="btn btn-secondary">
                     📅 Schedule
                   </button>

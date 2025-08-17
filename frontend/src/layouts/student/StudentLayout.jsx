@@ -1,5 +1,8 @@
 import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import NotificationCenter from '../../components/notifications/NotificationCenter';
+import { useAuth } from '../../contexts/auth/AuthContext';
+import '../../styles/layouts/student.css';
 
 const StudentLayout = ({ currentView, setCurrentView }) => {
   const location = useLocation();
@@ -76,6 +79,9 @@ const StudentLayout = ({ currentView, setCurrentView }) => {
         <div className="student-header">
           <h2>{getPageTitle()}</h2>
           <div className="header-actions">
+            {/* Notifications */}
+            <NotificationCenter />
+            
             <div className="view-toggle">
               <button
                 className={`toggle-btn ${currentView === 'admin' ? 'active' : ''}`}

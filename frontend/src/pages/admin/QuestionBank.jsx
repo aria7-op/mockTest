@@ -8,7 +8,7 @@ const QuestionBank = () => {
       subject: "Mathematics",
       topic: "Calculus",
       difficulty: "Intermediate",
-      type: "MCQ",
+      type: "MULTIPLE_CHOICE",
       options: ["2x", "x", "2x²", "x²"],
       correctAnswer: "2x",
       explanation: "The derivative of x² is 2x using the power rule."
@@ -19,7 +19,7 @@ const QuestionBank = () => {
       subject: "Physics",
       topic: "Mechanics",
       difficulty: "Beginner",
-      type: "MCQ",
+      type: "MULTIPLE_CHOICE",
       options: [
         "F = ma",
         "An object in motion stays in motion unless acted upon by an external force",
@@ -96,9 +96,6 @@ const QuestionBank = () => {
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button className="btn btn-secondary" style={{ padding: '0.5rem', fontSize: '0.875rem' }}>
                     Edit
-                  </button>
-                  <button className="btn btn-danger" style={{ padding: '0.5rem', fontSize: '0.875rem' }}>
-                    Delete
                   </button>
                 </div>
               </div>

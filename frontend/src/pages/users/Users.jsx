@@ -11,15 +11,44 @@ const Users = () => {
     error
   } = useUser();
 
-  const [newUser, setNewUser] = useState({ name: '', email: '', role: 'employee', department: 'General' });
+  const [newUser, setNewUser] = useState({ 
+    name: '', 
+    email: '', 
+    role: 'employee', 
+    password: ''
+  });
   const [showAddForm, setShowAddForm] = useState(false);
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-    if (!newUser.name.trim() || !newUser.email.trim()) return;
-    await createUser(newUser);
-    setNewUser({ name: '', email: '', role: 'employee', department: 'General' });
-    setShowAddForm(false);
+    if (!newUser.name.trim() || !newUser.email.trim() || !newUser.password.trim()) {
+      alert('Please fill in all required fields (Name, Email, Password)');
+      return;
+    }
+    
+    try {
+      console.log('Sending user data:', newUser);
+      await createUser(newUser);
+      setNewUser({ 
+        name: '', 
+        email: '', 
+        role: 'employee', 
+        password: ''
+      });
+      setShowAddForm(false);
+    } catch (error) {
+      console.error('Failed to create user:', error);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      try {
+        await deleteUser(userId);
+      } catch (error) {
+        console.error('Failed to delete user:', error);
+      }
+    }
   };
 
   const getRoleColor = (role) => {
@@ -48,7 +77,7 @@ const Users = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
-              placeholder="Full name"
+              placeholder="Full name *"
               value={newUser.name}
               onChange={(e) => setNewUser({...newUser, name: e.target.value})}
               className="px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
@@ -56,9 +85,17 @@ const Users = () => {
             />
             <input
               type="email"
-              placeholder="Email address"
+              placeholder="Email address *"
               value={newUser.email}
               onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+              className="px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password *"
+              value={newUser.password}
+              onChange={(e) => setNewUser({...newUser, password: e.target.value})}
               className="px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               required
             />
@@ -71,21 +108,14 @@ const Users = () => {
               <option value="manager">Manager</option>
               <option value="admin">Admin</option>
             </select>
-            <input
-              type="text"
-              placeholder="Department"
-              value={newUser.department}
-              onChange={(e) => setNewUser({...newUser, department: e.target.value})}
-              className="px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
           </div>
           <div className="mt-4 flex gap-2">
             <button
               type="submit"
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
               disabled={isLoading}
             >
-              Create User
+              {isLoading ? 'Creating...' : 'Create User'}
             </button>
             <button
               type="button"
@@ -94,6 +124,9 @@ const Users = () => {
             >
               Cancel
             </button>
+          </div>
+          <div className="mt-2 text-sm text-gray-500">
+            * Required fields. Note: The backend will auto-generate additional fields like Employee ID, Department, etc.
           </div>
         </form>
       )}
@@ -111,15 +144,18 @@ const Users = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Department</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {users.length === 0 ? (
+              {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">No users found.</td>
+                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">Loading users...</td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">No users found.</td>
                 </tr>
               ) : (
                 users.map(user => (
@@ -135,21 +171,21 @@ const Users = () => {
                         {user.role}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {user.department}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                      <span className={`px-2 py-1 text-xs rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {user.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => deleteUser(user.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDeleteUser(user.id)}
+                          className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          disabled={isLoading}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
